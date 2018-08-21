@@ -25,6 +25,14 @@
 #include <list>
 #include <opencv/cv.h>
 
+// #include <opencv2/ximgproc.hpp>
+// #include <opencv2/ximgproc/fast_line_detector.hpp>
+
+#include <line_descriptor_custom.hpp>
+#include <line_descriptor/descriptor_custom.hpp>
+using namespace cv;
+using namespace line_descriptor;
+
 
 namespace ORB_SLAM2
 {
@@ -108,6 +116,39 @@ protected:
     std::vector<float> mvInvScaleFactor;    
     std::vector<float> mvLevelSigma2;
     std::vector<float> mvInvLevelSigma2;
+};
+
+class Lineextractor
+{
+public:
+    Lineextractor(int _lsd_nfeatures, double _llength_th, bool _bFLD = false);
+    Lineextractor(int _lsd_nfeatures, double _llength_th, int _lsd_refine, double _lsd_scale, double _lsd_sigma_scale, 
+    double _lsd_quant, double _lsd_ang_th, double _lsd_log_eps, double _lsd_density_th, int _lsd_n_bins, bool _bFLD = false);
+
+    ~Lineextractor(){}
+
+    void operator()( const cv::Mat& image, const cv::Mat& mask,
+      std::vector<cv::line_descriptor::KeyLine>& keylines,
+      cv::Mat& descriptors_line);
+
+protected:
+    int    lsd_nfeatures;
+    double min_line_length;
+    bool   bFLD;
+
+    // lines detection and matching
+    int    lsd_refine;
+    double lsd_scale;
+    double lsd_sigma_scale;
+    double lsd_quant;
+    double lsd_ang_th;
+    double lsd_log_eps;
+    double lsd_density_th;
+    int    lsd_n_bins;
+    // double line_horiz_th;
+    
+    double min_ratio_12_l;
+    double ls_min_disp_ratio;
 };
 
 } //namespace ORB_SLAM

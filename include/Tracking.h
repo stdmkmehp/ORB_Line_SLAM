@@ -158,6 +158,10 @@ protected:
     ORBextractor* mpORBextractorLeft, *mpORBextractorRight;
     ORBextractor* mpIniORBextractor;
 
+    //ORB
+    Lineextractor* mpLineextractorLeft, *mpLineextractorRight;
+
+
     //BoW
     ORBVocabulary* mpORBVocabulary;
     KeyFrameDatabase* mpKeyFrameDB;

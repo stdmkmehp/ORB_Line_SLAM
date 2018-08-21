@@ -49,7 +49,13 @@ public:
     Frame(const Frame &frame);
 
     // Constructor for stereo cameras.
-    Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeStamp, ORBextractor* extractorLeft, ORBextractor* extractorRight, ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth);
+    Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeStamp, ORBextractor* extractorLeft, ORBextractor* extractorRight, 
+        ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef,
+        const float &bf, const float &thDepth);
+    // Constructor for stereo cameras with lines
+    Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeStamp, ORBextractor* extractorLeft, ORBextractor* extractorRight, 
+        Lineextractor* LineextractorLeft, Lineextractor* LineextractorRight, ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef,
+        const float &bf, const float &thDepth);
 
     // Constructor for RGB-D cameras.
     Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeStamp, ORBextractor* extractor,ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth);
@@ -59,6 +65,8 @@ public:
 
     // Extract ORB on the image. 0 for left image and 1 for right image.
     void ExtractORB(int flag, const cv::Mat &im);
+    // Extract LineFeatures on the image. 0 for left image and 1 for right image.
+    void ExtractLine(int flag, const cv::Mat &im);
 
     // Compute Bag of Words representation.
     void ComputeBoW();
@@ -102,8 +110,11 @@ public:
     // Vocabulary used for relocalization.
     ORBVocabulary* mpORBvocabulary;
 
-    // Feature extractor. The right is used only in the stereo case.
+    // Point Feature extractor. The right is used only in the stereo case.
     ORBextractor* mpORBextractorLeft, *mpORBextractorRight;
+
+    // Line Feature extractor. The right is used only in the stereo case.
+    Lineextractor* mpLineextractorLeft, *mpLineextractorRight;
 
     // Frame timestamp.
     double mTimeStamp;
@@ -136,6 +147,9 @@ public:
     // In the RGB-D case, RGB images can be distorted.
     std::vector<cv::KeyPoint> mvKeys, mvKeysRight;
     std::vector<cv::KeyPoint> mvKeysUn;
+    // Vector of keylines
+    std::vector<cv::line_descriptor::KeyLine> mvKeys_Line, mvKeysRight_Line;
+    std::vector<cv::line_descriptor::KeyLine> mvKeysUn_Line;
 
     // Corresponding stereo coordinate and depth for each keypoint.
     // "Monocular" keypoints have a negative value.
@@ -148,6 +162,8 @@ public:
 
     // ORB descriptor, each row associated to a keypoint.
     cv::Mat mDescriptors, mDescriptorsRight;
+    // Line descriptor, each row associated to a keypoint.
+    cv::Mat mDescriptors_Line, mDescriptorsRight_Line;
 
     // MapPoints associated to keypoints, NULL pointer if no association.
     std::vector<MapPoint*> mvpMapPoints;

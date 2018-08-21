@@ -17,7 +17,12 @@ Thirdparty/DBoW2/lib/
 Thirdparty/g2o/build/
 Thirdparty/g2o/config.h
 Thirdparty/g2o/lib/
+Thirdparty/line_descriptor/lib/
+Thirdparty/line_descriptor/build/
 Vocabulary/ORBvoc.txt
+Vocabulary/mapir_fld.yml
+Vocabulary/mapir_lsd.yml
+Vocabulary/mapir_orb.yml
 build/
 *~
 lib/

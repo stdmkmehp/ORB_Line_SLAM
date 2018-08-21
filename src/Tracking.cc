@@ -116,10 +116,27 @@ Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer,
     int fIniThFAST = fSettings["ORBextractor.iniThFAST"];
     int fMinThFAST = fSettings["ORBextractor.minThFAST"];
 
-    mpORBextractorLeft = new ORBextractor(nFeatures,fScaleFactor,nLevels,fIniThFAST,fMinThFAST);
+    // Load Line parameters
+    int lsd_nfeatures = fSettings["lsd_nfeatures"];
+    double min_line_length = fSettings["min_line_length"];
+    int lsd_refine = fSettings["lsd_refine"];
+    double lsd_scale = fSettings["lsd_scale"];
+    double lsd_sigma_scale = fSettings["lsd_sigma_scale"];
+    double lsd_quant = fSettings["lsd_quant"];
+    double lsd_ang_th = fSettings["lsd_ang_th"];
+    double lsd_log_eps = fSettings["lsd_log_eps"];
+    double lsd_density_th = fSettings["lsd_density_th"];
+    int lsd_n_bins = fSettings["lsd_n_bins"];
 
-    if(sensor==System::STEREO)
+    mpORBextractorLeft = new ORBextractor(nFeatures,fScaleFactor,nLevels,fIniThFAST,fMinThFAST);
+    mpLineextractorLeft = new Lineextractor(lsd_nfeatures, min_line_length, lsd_refine, 
+                                    lsd_scale, lsd_sigma_scale, lsd_quant, lsd_ang_th, lsd_log_eps, lsd_density_th, lsd_n_bins, false);
+
+    if(sensor==System::STEREO) {
         mpORBextractorRight = new ORBextractor(nFeatures,fScaleFactor,nLevels,fIniThFAST,fMinThFAST);
+        mpLineextractorRight = new Lineextractor(lsd_nfeatures, min_line_length, lsd_refine, 
+                                    lsd_scale, lsd_sigma_scale, lsd_quant, lsd_ang_th, lsd_log_eps, lsd_density_th, lsd_n_bins, false);
+    }
 
     if(sensor==System::MONOCULAR)
         mpIniORBextractor = new ORBextractor(2*nFeatures,fScaleFactor,nLevels,fIniThFAST,fMinThFAST);
@@ -196,7 +213,7 @@ cv::Mat Tracking::GrabImageStereo(const cv::Mat &imRectLeft, const cv::Mat &imRe
         }
     }
 
-    mCurrentFrame = Frame(mImGray,imGrayRight,timestamp,mpORBextractorLeft,mpORBextractorRight,mpORBVocabulary,mK,mDistCoef,mbf,mThDepth);
+    mCurrentFrame = Frame(mImGray,imGrayRight,timestamp,mpORBextractorLeft,mpORBextractorRight,mpLineextractorLeft,mpLineextractorRight,mpORBVocabulary,mK,mDistCoef,mbf,mThDepth);
 
     Track();
 
