@@ -56,6 +56,7 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
        cerr << "Failed to open settings file at: " << strSettingsFile << endl;
        exit(-1);
     }
+    Config::loadFromFile(strSettingsFile);
 
 
     //Load ORB Vocabulary
@@ -307,6 +308,8 @@ void System::Shutdown()
         mpViewer->RequestFinish();
         while(!mpViewer->isFinished())
             usleep(5000);
+        delete mpViewer;
+        mpViewer = static_cast<Viewer*>(NULL);
     }
 
     // Wait until all thread have effectively stopped

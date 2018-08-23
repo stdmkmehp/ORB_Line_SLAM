@@ -49,28 +49,8 @@ ${PROJECT_SOURCE_DIR}/Thirdparty/line_descriptor/include/
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
 
-add_library(${PROJECT_NAME} SHARED
-src/System.cc
-src/Tracking.cc
-src/LocalMapping.cc
-src/LoopClosing.cc
-src/ORBextractor.cc
-src/ORBmatcher.cc
-src/FrameDrawer.cc
-src/Converter.cc
-src/MapPoint.cc
-src/KeyFrame.cc
-src/Map.cc
-src/MapDrawer.cc
-src/Optimizer.cc
-src/PnPsolver.cc
-src/Frame.cc
-src/KeyFrameDatabase.cc
-src/Sim3Solver.cc
-src/Initializer.cc
-src/Viewer.cc
-src/Auxiliar.cc
-)
+aux_source_directory(./src/ DIR_SRCS)
+add_library(${PROJECT_NAME} SHARED ${DIR_SRCS})
 
 target_link_libraries(${PROJECT_NAME}
 ${OpenCV_LIBS}
@@ -113,4 +93,10 @@ target_link_libraries(mono_kitti ${PROJECT_NAME})
 add_executable(mono_euroc
 Examples/Monocular/mono_euroc.cc)
 target_link_libraries(mono_euroc ${PROJECT_NAME})
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples/PL)
+
+add_executable(PL_stereo_euroc
+Examples/PL/PL_stereo_euroc.cc)
+target_link_libraries(PL_stereo_euroc ${PROJECT_NAME})
 

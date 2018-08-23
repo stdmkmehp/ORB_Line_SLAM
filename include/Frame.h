@@ -32,6 +32,12 @@
 
 #include <opencv2/opencv.hpp>
 
+#include <stereoFeatures.h>
+
+#include "config.h"
+#include "matching.h"
+#include "gridStructure.h"
+
 namespace ORB_SLAM2
 {
 #define FRAME_GRID_ROWS 48
@@ -99,6 +105,8 @@ public:
     // Search a match for each keypoint in the left image to a keypoint in the right image.
     // If there is a match, depth is computed and the right coordinate associated to the left keypoint is stored.
     void ComputeStereoMatches();
+    // Search a match for each line in the left image to a line in the right image
+    void ComputeStereoMatches_Lines(bool initial = false);
 
     // Associate a "right" coordinate to a keypoint if there is valid depth in the depthmap.
     void ComputeStereoFromRGBD(const cv::Mat &imDepth);
@@ -155,6 +163,12 @@ public:
     // "Monocular" keypoints have a negative value.
     std::vector<float> mvuRight;
     std::vector<float> mvDepth;
+    // Corresponding stereo coordinate and depth for each keyline.
+    // "Monocular" keylines have a negative value.
+    // not used for now
+    std::vector<pair<float,float>> mvuRight_line;       // first->start point of a line   second->end point of a line
+    std::vector<float> mvDepth_line;
+
 
     // Bag of Words Vector structures.
     DBoW2::BowVector mBowVec;
@@ -164,6 +178,10 @@ public:
     cv::Mat mDescriptors, mDescriptorsRight;
     // Line descriptor, each row associated to a keypoint.
     cv::Mat mDescriptors_Line, mDescriptorsRight_Line;
+
+    // for PLslam
+    std::vector<LineFeature*> stereo_ls;
+    cv::Mat mDescriptors_Line_;
 
     // MapPoints associated to keypoints, NULL pointer if no association.
     std::vector<MapPoint*> mvpMapPoints;
@@ -203,6 +221,8 @@ public:
 
     static bool mbInitialComputations;
 
+    // grid cell
+    double inv_width, inv_height; 
 
 private:
 
@@ -210,12 +230,19 @@ private:
     // Only for the RGB-D case. Stereo must be already rectified!
     // (called in the constructor).
     void UndistortKeyPoints();
+    // Undistort keylines
+    void UndistortKeyLines();
 
     // Computes image bounds for the undistorted image (called in the constructor).
     void ComputeImageBounds(const cv::Mat &imLeft);
 
     // Assign keypoints to the grid for speed up feature matching (called in the constructor).
     void AssignFeaturesToGrid();
+
+    // PLslam
+    double lineSegmentOverlapStereo(double spl_obs, double epl_obs, double spl_proj, double epl_proj);
+    void filterLineSegmentDisparity(Vector2d spl, Vector2d epl, Vector2d spr, Vector2d epr, double &disp_s, double &disp_e);
+    Eigen::Vector3d backProjection( const double &u, const double &v, const double &disp );
 
     // Rotation, translation and camera center
     cv::Mat mRcw;

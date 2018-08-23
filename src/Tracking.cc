@@ -213,7 +213,9 @@ cv::Mat Tracking::GrabImageStereo(const cv::Mat &imRectLeft, const cv::Mat &imRe
         }
     }
 
-    mCurrentFrame = Frame(mImGray,imGrayRight,timestamp,mpORBextractorLeft,mpORBextractorRight,mpLineextractorLeft,mpLineextractorRight,mpORBVocabulary,mK,mDistCoef,mbf,mThDepth);
+    mCurrentFrame = Frame(mImGray,imGrayRight,timestamp,mpORBextractorLeft,mpORBextractorRight,
+        mpLineextractorLeft,mpLineextractorRight,mpORBVocabulary,
+        mK,mDistCoef,mbf,mThDepth);
 
     Track();
 

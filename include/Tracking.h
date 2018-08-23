@@ -40,6 +40,8 @@
 
 #include <mutex>
 
+#include "config.h"
+
 namespace ORB_SLAM2
 {
 

@@ -128,14 +128,14 @@ max_kf_r_dist         : 15.0
 
 # StVO-PL options
 # -----------------------------------------------------------------------------------------------------
-has_points         : true      # true if using points
-has_lines          : true      # true if using line segments
-use_fld_lines      : false      # true if using FLD detector
-lr_in_parallel     : true      # true if detecting and matching features in parallel
-pl_in_parallel     : true      # true if detecting points and line segments in parallel
-best_lr_matches    : true      # true if double-checking the matches between the two images
-adaptative_fast    : true      # true if using adaptative fast_threshold
-use_motion_model   : false     # true if using constant motion model
+has_points         : 1      # 1 if using points
+has_lines          : 1      # 1 if using line segments
+use_fld_lines      : 0      # 1 if using FLD detector
+lr_in_parallel     : 1      # 1 if detecting and matching features in parallel
+pl_in_parallel     : 1      # 1 if detecting points and line segments in parallel
+best_lr_matches    : 1      # 1 if double-checking the matches between the two images
+adaptative_fast    : 1      # 1 if using adaptative fast_threshold
+use_motion_model   : 0     # 1 if using constant motion model
 
 # Tracking parameters
 # -----------------------------------------------------------------------------------------------------
@@ -201,9 +201,9 @@ lsd_n_bins       : 1024
 # PLSLAM parameters
 # -----------------------------------------------------------------------------------------------------
 
-fast_matching         : true
-has_refinement        : false
-mutithread_slam       : true
+fast_matching         : 1
+has_refinement        : 0
+mutithread_slam       : 1
 
 # lm numbers and errors
 min_lm_obs            : 5
@@ -229,8 +229,8 @@ lambda_lba_k          : 10.0
 max_iters_lba         : 15
 
 # Loop closure
-vocabulary_p          : "/home/lab404/pl-slam/vocabulary/mapir_orb.yml"
-vocabulary_l          : "/home/lab404/pl-slam/vocabulary/mapir_lsd.yml"
+vocabulary_p          : ""
+vocabulary_l          : ""
 
 lc_mat                : 0.5
 lc_res                : 1.5

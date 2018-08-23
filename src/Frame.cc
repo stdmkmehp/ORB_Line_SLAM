@@ -48,7 +48,7 @@ Frame::Frame(const Frame &frame)
      mpReferenceKF(frame.mpReferenceKF), mnScaleLevels(frame.mnScaleLevels),
      mfScaleFactor(frame.mfScaleFactor), mfLogScaleFactor(frame.mfLogScaleFactor),
      mvScaleFactors(frame.mvScaleFactors), mvInvScaleFactors(frame.mvInvScaleFactors),
-     mvLevelSigma2(frame.mvLevelSigma2), mvInvLevelSigma2(frame.mvInvLevelSigma2)
+     mvLevelSigma2(frame.mvLevelSigma2), mvInvLevelSigma2(frame.mvInvLevelSigma2), inv_width(frame.inv_width), inv_height(frame.inv_width)
 {
     for(int i=0;i<FRAME_GRID_COLS;i++)
         for(int j=0; j<FRAME_GRID_ROWS; j++)
@@ -64,6 +64,12 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
     :mpORBvocabulary(voc),mpORBextractorLeft(extractorLeft),mpORBextractorRight(extractorRight), mTimeStamp(timeStamp), mK(K.clone()),mDistCoef(distCoef.clone()), mbf(bf), mThDepth(thDepth),
      mpReferenceKF(static_cast<KeyFrame*>(NULL))
 {
+    if (imLeft.size != imRight.size)
+        throw std::runtime_error("[StereoFrame] Left and right images have different sizes");
+
+    inv_width  = FRAME_GRID_COLS / static_cast<double>(imLeft.cols);
+    inv_height = FRAME_GRID_ROWS / static_cast<double>(imRight.rows);
+
     // Frame ID
     mnId=nNextId++;
 
@@ -125,6 +131,12 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
     :mpORBvocabulary(voc),mpORBextractorLeft(extractorLeft),mpORBextractorRight(extractorRight),mpLineextractorLeft(LineextractorLeft),mpLineextractorRight(LineextractorRight), mTimeStamp(timeStamp), mK(K.clone()),mDistCoef(distCoef.clone()), mbf(bf), mThDepth(thDepth),
      mpReferenceKF(static_cast<KeyFrame*>(NULL))
 {
+    if (imLeft.size != imRight.size)
+        throw std::runtime_error("[StereoFrame] Left and right images have different sizes");
+
+    inv_width  = FRAME_GRID_COLS / static_cast<double>(imLeft.cols);
+    inv_height = FRAME_GRID_ROWS / static_cast<double>(imRight.rows);
+
     // Frame ID
     mnId=nNextId++;
 
@@ -153,8 +165,10 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
         return;
 
     UndistortKeyPoints();
+    UndistortKeyLines();
 
     ComputeStereoMatches();
+    ComputeStereoMatches_Lines();
 
     mvpMapPoints = vector<MapPoint*>(N,static_cast<MapPoint*>(NULL));    
     mvbOutlier = vector<bool>(N,false);
@@ -508,6 +522,12 @@ void Frame::UndistortKeyPoints()
     }
 }
 
+void Frame::UndistortKeyLines()
+{
+    // TODO
+    mvKeysUn_Line = mvKeys_Line;
+}
+
 void Frame::ComputeImageBounds(const cv::Mat &imLeft)
 {
     if(mDistCoef.at<float>(0)!=0.0)
@@ -714,6 +734,144 @@ void Frame::ComputeStereoMatches()
     }
 }
 
+void Frame::ComputeStereoMatches_Lines(bool initial)
+{
+
+    // Line segments stereo matching
+    // --------------------------------------------------------------------------------------------------------------------
+    stereo_ls.clear();
+    if (mvKeys_Line.empty() || mvKeysRight_Line.empty())
+        return;
+
+    std::vector<line_2d> coords;
+    coords.reserve(mvKeys_Line.size());
+    for (const KeyLine &kl : mvKeys_Line)
+        coords.push_back(std::make_pair(std::make_pair(kl.startPointX * inv_width, kl.startPointY * inv_height),
+                                        std::make_pair(kl.endPointX * inv_width, kl.endPointY * inv_height)));
+
+    //Fill in grid & directions
+    list<pair<int, int>> line_coords;
+    GridStructure grid(FRAME_GRID_ROWS, FRAME_GRID_COLS);
+    std::vector<std::pair<double, double>> directions(mvKeysRight_Line.size());
+    for (unsigned int idx = 0; idx < mvKeysRight_Line.size(); ++idx) {
+        const KeyLine &kl = mvKeysRight_Line[idx];
+
+        std::pair<double, double> &v = directions[idx];
+        v = std::make_pair((kl.endPointX - kl.startPointX) * inv_width, (kl.endPointY - kl.startPointY) * inv_height);
+        normalize(v);
+
+        getLineCoords(kl.startPointX * inv_width, kl.startPointY * inv_height, kl.endPointX * inv_width, kl.endPointY * inv_height, line_coords);
+        for (const std::pair<int, int> &p : line_coords)
+            grid.at(p.first, p.second).push_back(idx);
+    }
+
+    GridWindow w;
+    w.width = std::make_pair(Config::matchingSWs(), 0);
+    w.height = std::make_pair(0, 0);
+
+    std::vector<int> matches_12;
+    matchGrid(coords, mDescriptors_Line, grid, mDescriptorsRight_Line, directions, w, matches_12);
+    //    match(mDescriptors_Line, mDescriptorsRight_Line, Config::minRatio12P(), matches_12);
+
+    // bucle around lmatches
+    Mat mDescriptors_Line_aux;
+    int ls_idx = 0;
+    for (unsigned int i1 = 0; i1 < matches_12.size(); ++i1) {
+        const int i2 = matches_12[i1];
+        if (i2 < 0) continue;
+
+        // estimate the disparity of the endpoints
+        Vector3d sp_l; sp_l << mvKeys_Line[i1].startPointX, mvKeys_Line[i1].startPointY, 1.0;
+        Vector3d ep_l; ep_l << mvKeys_Line[i1].endPointX,   mvKeys_Line[i1].endPointY,   1.0;
+        Vector3d le_l; le_l << sp_l.cross(ep_l); le_l = le_l / std::sqrt( le_l(0)*le_l(0) + le_l(1)*le_l(1) );
+        Vector3d sp_r; sp_r << mvKeysRight_Line[i2].startPointX, mvKeysRight_Line[i2].startPointY, 1.0;
+        Vector3d ep_r; ep_r << mvKeysRight_Line[i2].endPointX,   mvKeysRight_Line[i2].endPointY,   1.0;
+        Vector3d le_r; le_r << sp_r.cross(ep_r);
+
+        double overlap = lineSegmentOverlapStereo( sp_l(1), ep_l(1), sp_r(1), ep_r(1) );
+
+        double disp_s, disp_e;
+        sp_r << ( sp_r(0)*( sp_l(1) - ep_r(1) ) + ep_r(0)*( sp_r(1) - sp_l(1) ) ) / ( sp_r(1)-ep_r(1) ) , sp_l(1) ,  1.0;
+        ep_r << ( sp_r(0)*( ep_l(1) - ep_r(1) ) + ep_r(0)*( sp_r(1) - ep_l(1) ) ) / ( sp_r(1)-ep_r(1) ) , ep_l(1) ,  1.0;
+        filterLineSegmentDisparity( sp_l.head(2), ep_l.head(2), sp_r.head(2), ep_r.head(2), disp_s, disp_e );
+
+        // check minimal disparity
+        if( disp_s >= Config::minDisp() && disp_e >= Config::minDisp()
+            && std::abs( sp_l(1)-ep_l(1) ) > Config::lineHorizTh()
+            && std::abs( sp_r(1)-ep_r(1) ) > Config::lineHorizTh()
+            && overlap > Config::stereoOverlapTh() )
+        {
+            Vector3d sP_; sP_ = backProjection( sp_l(0), sp_l(1), disp_s);
+            Vector3d eP_; eP_ = backProjection( ep_l(0), ep_l(1), disp_e);
+            double angle_l = mvKeys_Line[i1].angle;
+            if( initial )
+            {
+                mDescriptors_Line_aux.push_back( mDescriptors_Line.row(i1) );
+                stereo_ls.push_back( new LineFeature(Vector2d(sp_l(0),sp_l(1)),disp_s,sP_,
+                                                     Vector2d(ep_l(0),ep_l(1)),disp_e,eP_,
+                                                     le_l,angle_l,ls_idx,mvKeys_Line[i1].octave) );
+                ls_idx++;
+            }
+            else
+            {
+                mDescriptors_Line_aux.push_back( mDescriptors_Line.row(i1) );
+                stereo_ls.push_back( new LineFeature(Vector2d(sp_l(0),sp_l(1)),disp_s,sP_,
+                                                     Vector2d(ep_l(0),ep_l(1)),disp_e,eP_,
+                                                     le_l,angle_l,-1,mvKeys_Line[i1].octave) );
+            }
+        }
+    }
+
+    mDescriptors_Line_aux.copyTo(mDescriptors_Line);
+}
+
+double Frame::lineSegmentOverlapStereo(double spl_obs, double epl_obs, double spl_proj, double epl_proj)
+{
+
+    double overlap = 1.f;
+
+    if( fabs( epl_obs - spl_obs ) > Config::lineHorizTh() ) // normal lines (verticals included)
+    {
+        double sln    = min(spl_obs,  epl_obs);
+        double eln    = max(spl_obs,  epl_obs);
+        double spn    = min(spl_proj, epl_proj);
+        double epn    = max(spl_proj, epl_proj);
+
+        double length = eln-spn;
+
+        if ( (epn < sln) || (spn > eln) )
+            overlap = 0.f;
+        else{
+            if ( (epn>eln) && (spn<sln) )
+                overlap = eln-sln;
+            else
+                overlap = min(eln,epn) - max(sln,spn);
+        }
+
+        if(length>0.01f)
+            overlap = overlap / length;
+        else
+            overlap = 0.f;
+
+        if( overlap > 1.f )
+            overlap = 1.f;
+
+    }
+
+    return overlap;
+}
+
+void Frame::filterLineSegmentDisparity( Vector2d spl, Vector2d epl, Vector2d spr, Vector2d epr, double &disp_s, double &disp_e )
+{
+    disp_s = spl(0) - spr(0);
+    disp_e = epl(0) - epr(0);
+    // if they are too different, ignore them
+    if(  min( disp_s, disp_e ) / max( disp_s, disp_e ) < Config::lsMinDispRatio() )
+    {
+        disp_s = -1.0;
+        disp_e = -1.0;
+    }
+}
 
 void Frame::ComputeStereoFromRGBD(const cv::Mat &imDepth)
 {
@@ -752,6 +910,16 @@ cv::Mat Frame::UnprojectStereo(const int &i)
     }
     else
         return cv::Mat();
+}
+
+Eigen::Vector3d Frame::backProjection( const double &u, const double &v, const double &disp )
+{
+    Eigen::Vector3d P;
+    double bd = mb/disp;
+    P(0) = bd*(u-cx);
+    P(1) = bd*(v-cy);
+    P(2) = bd*fx;
+    return P;
 }
 
 } //namespace ORB_SLAM
