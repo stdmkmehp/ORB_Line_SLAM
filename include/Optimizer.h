@@ -26,8 +26,13 @@
 #include "KeyFrame.h"
 #include "LoopClosing.h"
 #include "Frame.h"
+#include "Auxiliar.h"
+#include "Converter.h"
 
 #include "Thirdparty/g2o/g2o/types/types_seven_dof_expmap.h"
+
+#include <eigen3/Eigen/Core>
+using namespace Eigen;
 
 namespace ORB_SLAM2
 {
@@ -37,6 +42,7 @@ class LoopClosing;
 class Optimizer
 {
 public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
     void static BundleAdjustment(const std::vector<KeyFrame*> &vpKF, const std::vector<MapPoint*> &vpMP,
                                  int nIterations = 5, bool *pbStopFlag=NULL, const unsigned long nLoopKF=0,
                                  const bool bRobust = true);
@@ -44,6 +50,9 @@ public:
                                        const unsigned long nLoopKF=0, const bool bRobust = true);
     void static LocalBundleAdjustment(KeyFrame* pKF, bool *pbStopFlag, Map *pMap);
     int static PoseOptimization(Frame* pFrame);
+  
+    void static removeOutliers(Matrix4d DT, Frame *pFrame);
+    int static PoseOptimizationWithLine(Frame* pFrame);
 
     // if bFixScale is true, 6DoF optimization (stereo,rgbd), 7DoF otherwise (mono)
     void static OptimizeEssentialGraph(Map* pMap, KeyFrame* pLoopKF, KeyFrame* pCurKF,
@@ -55,6 +64,14 @@ public:
     // if bFixScale is true, optimize SE3 (stereo,rgbd), Sim3 otherwise (mono)
     static int OptimizeSim3(KeyFrame* pKF1, KeyFrame* pKF2, std::vector<MapPoint *> &vpMatches1,
                             g2o::Sim3 &g2oS12, const float th2, const bool bFixScale);
+
+private:
+    static bool isGoodSolution( Matrix4d DT, Matrix6d DTcov, double err);
+    static void gaussNewtonOptimization(Matrix4d &DT, Matrix6d &DT_cov, double &err_, int max_iters, Frame* pFrame);
+    static void gaussNewtonOptimizationRobust(Matrix4d &DT, Matrix6d &DT_cov, double &err_, int max_iters, Frame* pFrame);
+    static void levenbergMarquardtOptimization(Matrix4d &DT, Matrix6d &DT_cov, double &err_, int max_iters, Frame* pFrame);
+    static void optimizeFunctions(Matrix4d DT, Matrix6d &H, Vector6d &g, double &e, Frame* pFrame);
+    static void optimizeFunctionsRobust(Matrix4d DT, Matrix6d &H, Vector6d &g, double &e, Frame* pFrame);
 };
 
 } //namespace ORB_SLAM

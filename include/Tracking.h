@@ -131,6 +131,10 @@ protected:
 
     void CheckReplacedInLastFrame();
     bool TrackReferenceKeyFrame();
+
+    // Track with line
+    bool TrackReferenceKeyFrameWithLine();
+    
     void UpdateLastFrame();
     bool TrackWithMotionModel();
 
@@ -160,7 +164,7 @@ protected:
     ORBextractor* mpORBextractorLeft, *mpORBextractorRight;
     ORBextractor* mpIniORBextractor;
 
-    //ORB
+    //Line Feature
     Lineextractor* mpLineextractorLeft, *mpLineextractorRight;
 
 

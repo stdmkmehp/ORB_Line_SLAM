@@ -171,6 +171,13 @@ struct CV_EXPORTS KeyLine
   KeyLine()
   {
   }
+
+//  KeyLine(const KeyLine& kl):angle(kl.angle),class_id(kl.class_id),octave(kl.octave),pt(kl.pt),response(kl.response),size(kl.size),
+//        startPointX(kl.startPointX),startPointY(kl.startPointY),ePointInOctaveX(kl.ePointInOctaveX),ePointInOctaveY(kl.ePointInOctaveY),
+//        sPointInOctaveX(kl.sPointInOctaveX),sPointInOctaveY(kl.sPointInOctaveY),ePointInOctaveX(kl.ePointInOctaveX),ePointInOctaveY(kl.ePointInOctaveY),
+//        lineLength(kl.lineLength), numOfPixels(kl.numOfPixels)
+//  {
+//  }
 };
 
 /** @brief Class implements both functionalities for detection of lines and computation of their

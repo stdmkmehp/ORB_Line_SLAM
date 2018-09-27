@@ -38,12 +38,22 @@
 #include "matching.h"
 #include "gridStructure.h"
 
+
+#include <eigen3/Eigen/Core>
+using namespace Eigen;
+
+typedef Eigen::Matrix<double,6,6> Matrix6d;
+typedef Eigen::Matrix<double,6,1> Vector6d;
+// typedef Eigen::Matrix<double,6,6> Eigen::Matrix6d;
+// typedef Eigen::Matrix<double,6,1> Eigen::Vector6d;
+
 namespace ORB_SLAM2
 {
 #define FRAME_GRID_ROWS 48
 #define FRAME_GRID_COLS 64
 
 class MapPoint;
+class MapLine;
 class KeyFrame;
 
 class Frame
@@ -106,13 +116,18 @@ public:
     // If there is a match, depth is computed and the right coordinate associated to the left keypoint is stored.
     void ComputeStereoMatches();
     // Search a match for each line in the left image to a line in the right image
-    void ComputeStereoMatches_Lines(bool initial = false);
+    void ComputeStereoMatches_Lines(bool initial = true);
 
     // Associate a "right" coordinate to a keypoint if there is valid depth in the depthmap.
     void ComputeStereoFromRGBD(const cv::Mat &imDepth);
 
     // Backprojects a keypoint (if stereo/depth info available) into 3D world coordinates.
     cv::Mat UnprojectStereo(const int &i);
+
+
+    Eigen::Vector3d backProjection( const double &u, const double &v, const double &disp );
+    Eigen::Vector2d projection( const Eigen::Vector3d &P );
+    double lineSegmentOverlap(Vector2d spl_obs, Vector2d epl_obs, Vector2d spl_proj, Vector2d epl_proj);
 
 public:
     // Vocabulary used for relocalization.
@@ -149,6 +164,7 @@ public:
 
     // Number of KeyPoints.
     int N;
+    int N_l;
 
     // Vector of keypoints (original for visualization) and undistorted (actually used by the system).
     // In the stereo case, mvKeysUn is redundant as images must be rectified.
@@ -163,12 +179,6 @@ public:
     // "Monocular" keypoints have a negative value.
     std::vector<float> mvuRight;
     std::vector<float> mvDepth;
-    // Corresponding stereo coordinate and depth for each keyline.
-    // "Monocular" keylines have a negative value.
-    // not used for now
-    std::vector<pair<float,float>> mvuRight_line;       // first->start point of a line   second->end point of a line
-    std::vector<float> mvDepth_line;
-
 
     // Bag of Words Vector structures.
     DBoW2::BowVector mBowVec;
@@ -180,11 +190,15 @@ public:
     cv::Mat mDescriptors_Line, mDescriptorsRight_Line;
 
     // for PLslam
-    std::vector<LineFeature*> stereo_ls;
-    cv::Mat mDescriptors_Line_;
+    // TODO (DONE) : use mvKeys_Line instead of stereo_ls
+    // std::vector<LineFeature*> stereo_ls;
+    std::vector<pair<float,float>> mvDisparity_l;
+    std::vector<Vector3d> mvle_l;
+    std::vector<MapLine*> mvpMapLines;
 
     // MapPoints associated to keypoints, NULL pointer if no association.
     std::vector<MapPoint*> mvpMapPoints;
+    std::vector<bool> mvbOutlier_Line;
 
     // Flag to identify outlier associations.
     std::vector<bool> mvbOutlier;
@@ -224,6 +238,13 @@ public:
     // grid cell
     double inv_width, inv_height; 
 
+    Matrix6d DT_cov;
+    Vector6d DT_cov_eig;
+    double   err_norm;
+
+
+    int  n_inliers, n_inliers_pt, n_inliers_ls;
+
 private:
 
     // Undistort keypoints given OpenCV distortion parameters.
@@ -242,7 +263,6 @@ private:
     // PLslam
     double lineSegmentOverlapStereo(double spl_obs, double epl_obs, double spl_proj, double epl_proj);
     void filterLineSegmentDisparity(Vector2d spl, Vector2d epl, Vector2d spr, Vector2d epr, double &disp_s, double &disp_e);
-    Eigen::Vector3d backProjection( const double &u, const double &v, const double &disp );
 
     // Rotation, translation and camera center
     cv::Mat mRcw;

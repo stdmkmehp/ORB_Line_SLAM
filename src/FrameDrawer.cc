@@ -41,6 +41,7 @@ cv::Mat FrameDrawer::DrawFrame()
     vector<cv::KeyPoint> vIniKeys; // Initialization: KeyPoints in reference frame
     vector<int> vMatches; // Initialization: correspondeces with reference keypoints
     vector<cv::KeyPoint> vCurrentKeys; // KeyPoints in current frame
+    vector<cv::line_descriptor::KeyLine> vCurrentKeys_Line; // KeyPoints in current frame
     vector<bool> vbVO, vbMap; // Tracked MapPoints in current frame
     int state; // Tracking state
 
@@ -58,16 +59,19 @@ cv::Mat FrameDrawer::DrawFrame()
             vCurrentKeys = mvCurrentKeys;
             vIniKeys = mvIniKeys;
             vMatches = mvIniMatches;
+            vCurrentKeys_Line = mvCurrentKeys_Line;
         }
         else if(mState==Tracking::OK)
         {
             vCurrentKeys = mvCurrentKeys;
             vbVO = mvbVO;
             vbMap = mvbMap;
+            vCurrentKeys_Line = mvCurrentKeys_Line;
         }
         else if(mState==Tracking::LOST)
         {
             vCurrentKeys = mvCurrentKeys;
+            vCurrentKeys_Line = mvCurrentKeys_Line;
         }
     } // destroy scoped mutex -> release mutex
 
@@ -115,6 +119,22 @@ cv::Mat FrameDrawer::DrawFrame()
                     cv::circle(im,vCurrentKeys[i].pt,2,cv::Scalar(255,0,0),-1);
                     mnTrackedVO++;
                 }
+            }
+        }
+
+        // draw line features
+        const int nl = vCurrentKeys_Line.size();
+        for(int i=0; i<nl; ++i)
+        {
+            // FIXME :if(vCurrentKeys_Line[i])
+            if(true)//vCurrentKeys_Line[i])
+            {
+                cv::Point2f sp, ep;
+                sp.x = int(vCurrentKeys_Line[i].startPointX);
+                sp.y = int(vCurrentKeys_Line[i].startPointY);
+                ep.x = int(vCurrentKeys_Line[i].endPointX);
+                ep.y = int(vCurrentKeys_Line[i].endPointY);
+                cv::line(im, sp, ep, cv::Scalar(0,0,255), 1.5);
             }
         }
     }
@@ -174,6 +194,8 @@ void FrameDrawer::Update(Tracking *pTracker)
     mvbMap = vector<bool>(N,false);
     mbOnlyTracking = pTracker->mbOnlyTracking;
 
+    // line 
+    mvCurrentKeys_Line = pTracker->mCurrentFrame.mvKeysUn_Line;
 
     if(pTracker->mLastProcessedState==Tracking::NOT_INITIALIZED)
     {

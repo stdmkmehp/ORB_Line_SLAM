@@ -325,13 +325,17 @@ void Tracking::Track()
 
                 if(mVelocity.empty() || mCurrentFrame.mnId<mnLastRelocFrameId+2)
                 {
-                    bOK = TrackReferenceKeyFrame();
+                    bOK = TrackReferenceKeyFrameWithLine();
+                    // bOK = TrackReferenceKeyFrame();
                 }
                 else
                 {
-                    bOK = TrackWithMotionModel();
+                    bOK = TrackReferenceKeyFrameWithLine();
+                    // bOK = TrackReferenceKeyFrame();
+                    // bOK = TrackWithMotionModel();
                     if(!bOK)
-                        bOK = TrackReferenceKeyFrame();
+                        bOK = TrackReferenceKeyFrameWithLine();
+                        // bOK = TrackReferenceKeyFrame();
                 }
             }
             else
@@ -554,6 +558,33 @@ void Tracking::StereoInitialization()
 
                 mCurrentFrame.mvpMapPoints[i]=pNewMP;
             }
+        }
+        const int Nstl = mCurrentFrame.mvKeysUn_Line.size();
+        for(int i=0; i<Nstl; ++i)
+        {
+            // TODO: modify conditoin "if(pline)"
+
+            //LineFeature* pline = mCurrentFrame.stereo_ls[i];
+            //if(pline)
+            //{
+                Eigen::Vector3d sp3D = mCurrentFrame.backProjection(
+                            mCurrentFrame.mvKeysUn_Line[i].startPointX,
+                            mCurrentFrame.mvKeysUn_Line[i].startPointY,
+                            mCurrentFrame.mvDisparity_l[i].first);
+                Eigen::Vector3d ep3D = mCurrentFrame.backProjection(
+                            mCurrentFrame.mvKeysUn_Line[i].endPointX,
+                            mCurrentFrame.mvKeysUn_Line[i].endPointY,
+                            mCurrentFrame.mvDisparity_l[i].second);
+
+                MapLine* pNewML = new MapLine(sp3D,ep3D,pKFini,mpMap);      //
+                pNewML->AddObservation(pKFini,i);                           //
+                pKFini->AddMapLine(pNewML,i);                              //
+                pNewML->ComputeDistinctiveDescriptors();
+                pNewML->UpdateNormalAndDepth();
+                mpMap->AddMapLine(pNewML);
+
+                mCurrentFrame.mvpMapLines[i]=pNewML;        
+            //}
         }
 
         cout << "New map created with " << mpMap->MapPointsInMap() << " points" << endl;
@@ -783,7 +814,7 @@ bool Tracking::TrackReferenceKeyFrame()
     ORBmatcher matcher(0.7,true);
     vector<MapPoint*> vpMapPointMatches;
 
-    int nmatches = matcher.SearchByBoW(mpReferenceKF,mCurrentFrame,vpMapPointMatches);
+    int nmatches = matcher.SearchByBoW(mpReferenceKF, mCurrentFrame, vpMapPointMatches);
 
     if(nmatches<15)
         return false;
@@ -808,6 +839,77 @@ bool Tracking::TrackReferenceKeyFrame()
                 pMP->mbTrackInView = false;
                 pMP->mnLastFrameSeen = mCurrentFrame.mnId;
                 nmatches--;
+            }
+            else if(mCurrentFrame.mvpMapPoints[i]->Observations()>0)
+                nmatchesMap++;
+        }
+    }
+
+    return nmatchesMap>=10;
+}
+
+bool Tracking::TrackReferenceKeyFrameWithLine()
+{
+    // Compute Bag of Words vector
+    mCurrentFrame.ComputeBoW();
+
+    // We perform first an ORB matching with the reference keyframe
+    // If enough matches are found we setup a PnP solver
+    ORBmatcher matcher(0.7,true);
+    vector<MapPoint*> vpMapPointMatches;
+
+    mCurrentFrame.n_inliers_pt = matcher.SearchByBoW(mpReferenceKF,mCurrentFrame,vpMapPointMatches);
+
+    if(mCurrentFrame.n_inliers_pt<15)
+        return false;
+
+    mCurrentFrame.mvpMapPoints = vpMapPointMatches;
+    mCurrentFrame.SetPose(mLastFrame.mTcw);
+
+    // line segments f2f tracking
+    if( !Config::hasLines() || mCurrentFrame.mvKeysUn_Line.empty())// || mpReferenceKF->mvKeysUn_Line.empty() )
+        return false;
+
+    std::vector<int> matches_12;
+    match(mpReferenceKF->mDescriptors_l, mCurrentFrame.mDescriptors_Line, Config::minRatio12L(), matches_12);
+
+    mCurrentFrame.mvpMapLines = vector<MapLine*>(mCurrentFrame.N,static_cast<MapLine*>(NULL));
+    const vector<MapLine*> vpMapLinesRKF = mpReferenceKF->GetMapLineMatches();
+
+    mCurrentFrame.n_inliers_ls = 0;
+    const int nmatches_12 = matches_12.size();
+    for (int i1 = 0; i1 < nmatches_12; ++i1) {
+        const int i2 = matches_12[i1];
+        if (i2 < 0) continue;
+        mCurrentFrame.mvpMapLines[i2] = vpMapLinesRKF[i1];
+        ++mCurrentFrame.n_inliers_ls;
+    }
+
+    if(mCurrentFrame.n_inliers_ls<10)
+        return false;
+
+    mCurrentFrame.n_inliers = mCurrentFrame.n_inliers_ls + mCurrentFrame.n_inliers_pt;
+    cout<<"Starting PoseOptimizationWithLine..."<<endl;
+    Optimizer::PoseOptimizationWithLine(&mCurrentFrame);
+    cout<<"PoseOptimizationWithLine done."<<endl;
+
+    // Optimizer::PoseOptimization(&mCurrentFrame);
+
+    // Discard outliers
+    int nmatchesMap = 0;
+    for(int i =0; i<mCurrentFrame.N; i++)
+    {
+        if(mCurrentFrame.mvpMapPoints[i])
+        {
+            if(mCurrentFrame.mvbOutlier[i])
+            {
+                MapPoint* pMP = mCurrentFrame.mvpMapPoints[i];
+
+                mCurrentFrame.mvpMapPoints[i]=static_cast<MapPoint*>(NULL);
+                mCurrentFrame.mvbOutlier[i]=false;
+                pMP->mbTrackInView = false;
+                pMP->mnLastFrameSeen = mCurrentFrame.mnId;
+                // nmatches--;
             }
             else if(mCurrentFrame.mvpMapPoints[i]->Observations()>0)
                 nmatchesMap++;

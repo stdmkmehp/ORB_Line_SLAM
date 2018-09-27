@@ -25,6 +25,8 @@
 #include <list>
 #include <opencv/cv.h>
 
+#include "Auxiliar.h"
+
 // #include <opencv2/ximgproc.hpp>
 // #include <opencv2/ximgproc/fast_line_detector.hpp>
 
@@ -134,7 +136,6 @@ public:
 protected:
     int    lsd_nfeatures;
     double min_line_length;
-    bool   bFLD;
 
     // lines detection and matching
     int    lsd_refine;
@@ -146,6 +147,8 @@ protected:
     double lsd_density_th;
     int    lsd_n_bins;
     // double line_horiz_th;
+    
+    bool   bFLD;
     
     double min_ratio_12_l;
     double ls_min_disp_ratio;

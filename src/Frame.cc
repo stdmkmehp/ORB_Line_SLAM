@@ -40,7 +40,7 @@ Frame::Frame(const Frame &frame)
     :mpORBvocabulary(frame.mpORBvocabulary), mpORBextractorLeft(frame.mpORBextractorLeft), mpORBextractorRight(frame.mpORBextractorRight),
      mpLineextractorLeft(frame.mpLineextractorLeft), mpLineextractorRight(frame.mpLineextractorRight),
      mTimeStamp(frame.mTimeStamp), mK(frame.mK.clone()), mDistCoef(frame.mDistCoef.clone()),
-     mbf(frame.mbf), mb(frame.mb), mThDepth(frame.mThDepth), N(frame.N), mvKeys(frame.mvKeys),
+     mbf(frame.mbf), mb(frame.mb), mThDepth(frame.mThDepth), N(frame.N), N_l(frame.N_l), mvKeys(frame.mvKeys),
      mvKeysRight(frame.mvKeysRight), mvKeysUn(frame.mvKeysUn),  mvuRight(frame.mvuRight),
      mvDepth(frame.mvDepth), mBowVec(frame.mBowVec), mFeatVec(frame.mFeatVec),
      mDescriptors(frame.mDescriptors.clone()), mDescriptorsRight(frame.mDescriptorsRight.clone()),
@@ -160,19 +160,10 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
     threadRight_Line.join();
 
     N = mvKeys.size();
+    N_l = mvKeys_Line.size();       // for now
 
     if(mvKeys.empty())
         return;
-
-    UndistortKeyPoints();
-    UndistortKeyLines();
-
-    ComputeStereoMatches();
-    ComputeStereoMatches_Lines();
-
-    mvpMapPoints = vector<MapPoint*>(N,static_cast<MapPoint*>(NULL));    
-    mvbOutlier = vector<bool>(N,false);
-
 
     // This is done only for the first Frame (or after a change in the calibration)
     if(mbInitialComputations)
@@ -193,6 +184,19 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
     }
 
     mb = mbf/fx;
+
+    UndistortKeyPoints();
+    UndistortKeyLines();
+
+    ComputeStereoMatches();
+    ComputeStereoMatches_Lines();
+
+    N_l = mvKeys_Line.size();   // update N_l
+
+    mvpMapPoints = vector<MapPoint*>(N,static_cast<MapPoint*>(NULL));    
+    mvpMapLines = vector<MapLine*>(N_l,static_cast<MapLine*>(NULL));
+    mvbOutlier = vector<bool>(N,false);
+    mvbOutlier_Line = vector<bool>(N_l,false);
 
     AssignFeaturesToGrid();
 }
@@ -736,16 +740,22 @@ void Frame::ComputeStereoMatches()
 
 void Frame::ComputeStereoMatches_Lines(bool initial)
 {
+    std::vector<cv::line_descriptor::KeyLine> mvKeys_Line_tmp;
+    mvKeys_Line_tmp.reserve(mvKeysUn_Line.size());
+    mvDisparity_l.clear();
+    mvDisparity_l.reserve(mvKeysUn_Line.size());
+    mvle_l.clear();
+    mvle_l.reserve(mvKeysUn_Line.size());
+
 
     // Line segments stereo matching
     // --------------------------------------------------------------------------------------------------------------------
-    stereo_ls.clear();
-    if (mvKeys_Line.empty() || mvKeysRight_Line.empty())
+    if (mvKeysUn_Line.empty() || mvKeysRight_Line.empty())
         return;
 
     std::vector<line_2d> coords;
-    coords.reserve(mvKeys_Line.size());
-    for (const KeyLine &kl : mvKeys_Line)
+    coords.reserve(mvKeysUn_Line.size());
+    for (const KeyLine &kl : mvKeysUn_Line)
         coords.push_back(std::make_pair(std::make_pair(kl.startPointX * inv_width, kl.startPointY * inv_height),
                                         std::make_pair(kl.endPointX * inv_width, kl.endPointY * inv_height)));
 
@@ -771,18 +781,19 @@ void Frame::ComputeStereoMatches_Lines(bool initial)
 
     std::vector<int> matches_12;
     matchGrid(coords, mDescriptors_Line, grid, mDescriptorsRight_Line, directions, w, matches_12);
-    //    match(mDescriptors_Line, mDescriptorsRight_Line, Config::minRatio12P(), matches_12);
+    // match(mDescriptors_Line, mDescriptorsRight_Line, Config::minRatio12P(), matches_12);
 
     // bucle around lmatches
     Mat mDescriptors_Line_aux;
     int ls_idx = 0;
+    // stereo_ls.clear();
     for (unsigned int i1 = 0; i1 < matches_12.size(); ++i1) {
         const int i2 = matches_12[i1];
         if (i2 < 0) continue;
 
         // estimate the disparity of the endpoints
-        Vector3d sp_l; sp_l << mvKeys_Line[i1].startPointX, mvKeys_Line[i1].startPointY, 1.0;
-        Vector3d ep_l; ep_l << mvKeys_Line[i1].endPointX,   mvKeys_Line[i1].endPointY,   1.0;
+        Vector3d sp_l; sp_l << mvKeysUn_Line[i1].startPointX, mvKeysUn_Line[i1].startPointY, 1.0;
+        Vector3d ep_l; ep_l << mvKeysUn_Line[i1].endPointX,   mvKeysUn_Line[i1].endPointY,   1.0;
         Vector3d le_l; le_l << sp_l.cross(ep_l); le_l = le_l / std::sqrt( le_l(0)*le_l(0) + le_l(1)*le_l(1) );
         Vector3d sp_r; sp_r << mvKeysRight_Line[i2].startPointX, mvKeysRight_Line[i2].startPointY, 1.0;
         Vector3d ep_r; ep_r << mvKeysRight_Line[i2].endPointX,   mvKeysRight_Line[i2].endPointY,   1.0;
@@ -801,15 +812,21 @@ void Frame::ComputeStereoMatches_Lines(bool initial)
             && std::abs( sp_r(1)-ep_r(1) ) > Config::lineHorizTh()
             && overlap > Config::stereoOverlapTh() )
         {
-            Vector3d sP_; sP_ = backProjection( sp_l(0), sp_l(1), disp_s);
-            Vector3d eP_; eP_ = backProjection( ep_l(0), ep_l(1), disp_e);
-            double angle_l = mvKeys_Line[i1].angle;
+            mvKeys_Line_tmp.push_back(mvKeysUn_Line[i1]);
+            mvDisparity_l.push_back(make_pair(disp_s,disp_e));
+            mvle_l.push_back(le_l);
+            mDescriptors_Line_aux.push_back( mDescriptors_Line.row(i1) );
+            // use mvKeysUn_Line+mvDisparity_l+mvle_l instead of stereo_ls
+            /*
+            Vector3d sP_; //sP_ = backProjection( sp_l(0), sp_l(1), disp_s);
+            Vector3d eP_; //eP_ = backProjection( ep_l(0), ep_l(1), disp_e);
+            double angle_l = mvKeysUn_Line[i1].angle;
             if( initial )
             {
                 mDescriptors_Line_aux.push_back( mDescriptors_Line.row(i1) );
                 stereo_ls.push_back( new LineFeature(Vector2d(sp_l(0),sp_l(1)),disp_s,sP_,
                                                      Vector2d(ep_l(0),ep_l(1)),disp_e,eP_,
-                                                     le_l,angle_l,ls_idx,mvKeys_Line[i1].octave) );
+                                                     le_l,angle_l,ls_idx,mvKeysUn_Line[i1].octave) );
                 ls_idx++;
             }
             else
@@ -817,11 +834,12 @@ void Frame::ComputeStereoMatches_Lines(bool initial)
                 mDescriptors_Line_aux.push_back( mDescriptors_Line.row(i1) );
                 stereo_ls.push_back( new LineFeature(Vector2d(sp_l(0),sp_l(1)),disp_s,sP_,
                                                      Vector2d(ep_l(0),ep_l(1)),disp_e,eP_,
-                                                     le_l,angle_l,-1,mvKeys_Line[i1].octave) );
+                                                     le_l,angle_l,-1,mvKeysUn_Line[i1].octave) );
             }
+            */
         }
     }
-
+    mvKeysUn_Line.swap(mvKeys_Line_tmp);
     mDescriptors_Line_aux.copyTo(mDescriptors_Line);
 }
 
@@ -919,7 +937,117 @@ Eigen::Vector3d Frame::backProjection( const double &u, const double &v, const d
     P(0) = bd*(u-cx);
     P(1) = bd*(v-cy);
     P(2) = bd*fx;
-    return P;
+    return Converter::toMatrix3d(mRwc)*P+Converter::toVector3d(mOw);
+}
+Eigen::Vector2d Frame::projection(const Eigen::Vector3d &P )
+{
+    Vector2d uv_unit;
+    uv_unit(0) = cx + fx * P(0) / P(2);
+    uv_unit(1) = cy + fy * P(1) / P(2);
+    return uv_unit;
+}
+
+double Frame::lineSegmentOverlap(Vector2d spl_obs, Vector2d epl_obs, Vector2d spl_proj, Vector2d epl_proj)
+{
+
+    double overlap = 1.f;
+
+    if( fabs(spl_obs(0)-epl_obs(0)) < 1.0 )         // vertical lines
+    {
+
+        // line equations
+        Vector2d l = epl_obs - spl_obs;
+
+        // intersection points
+        Vector2d spl_proj_line, epl_proj_line;
+        spl_proj_line << spl_obs(0), spl_proj(1);
+        epl_proj_line << epl_obs(0), epl_proj(1);
+
+        // estimate overlap in function of lambdas
+        double lambda_s = (spl_proj_line(1)-spl_obs(1)) / l(1);
+        double lambda_e = (epl_proj_line(1)-spl_obs(1)) / l(1);
+
+        double lambda_min = min(lambda_s,lambda_e);
+        double lambda_max = max(lambda_s,lambda_e);
+
+        if( lambda_min < 0.f && lambda_max > 1.f )
+            overlap = 1.f;
+        else if( lambda_max < 0.f || lambda_min > 1.f )
+            overlap = 0.f;
+        else if( lambda_min < 0.f )
+            overlap = lambda_max;
+        else if( lambda_max > 1.f )
+            overlap = 1.f - lambda_min;
+        else
+            overlap = lambda_max - lambda_min;
+    }
+    else if( fabs(spl_obs(1)-epl_obs(1)) < 1.0 )    // horizontal lines (previously removed)
+    {
+
+        // line equations
+        Vector2d l = epl_obs - spl_obs;
+
+        // intersection points
+        Vector2d spl_proj_line, epl_proj_line;
+        spl_proj_line << spl_proj(0), spl_obs(1);
+        epl_proj_line << epl_proj(0), epl_obs(1);
+
+        // estimate overlap in function of lambdas
+        double lambda_s = (spl_proj_line(0)-spl_obs(0)) / l(0);
+        double lambda_e = (epl_proj_line(0)-spl_obs(0)) / l(0);
+
+        double lambda_min = min(lambda_s,lambda_e);
+        double lambda_max = max(lambda_s,lambda_e);
+
+        if( lambda_min < 0.f && lambda_max > 1.f )
+            overlap = 1.f;
+        else if( lambda_max < 0.f || lambda_min > 1.f )
+            overlap = 0.f;
+        else if( lambda_min < 0.f )
+            overlap = lambda_max;
+        else if( lambda_max > 1.f )
+            overlap = 1.f - lambda_min;
+        else
+            overlap = lambda_max - lambda_min;
+    }
+    else                                            // non-degenerate cases
+    {
+
+        // line equations
+        Vector2d l = epl_obs - spl_obs;
+        double a = spl_obs(1)-epl_obs(1);
+        double b = epl_obs(0)-spl_obs(0);
+        double c = spl_obs(0)*epl_obs(1) - epl_obs(0)*spl_obs(1);
+
+        // intersection points
+        Vector2d spl_proj_line, epl_proj_line;
+        double lxy = 1.f / (a*a+b*b);
+
+        spl_proj_line << ( b*( b*spl_proj(0)-a*spl_proj(1))-a*c ) * lxy,
+                         ( a*(-b*spl_proj(0)+a*spl_proj(1))-b*c ) * lxy;
+
+        epl_proj_line << ( b*( b*epl_proj(0)-a*epl_proj(1))-a*c ) * lxy,
+                         ( a*(-b*epl_proj(0)+a*epl_proj(1))-b*c ) * lxy;
+
+        // estimate overlap in function of lambdas
+        double lambda_s = (spl_proj_line(0)-spl_obs(0)) / l(0);
+        double lambda_e = (epl_proj_line(0)-spl_obs(0)) / l(0);
+
+        double lambda_min = min(lambda_s,lambda_e);
+        double lambda_max = max(lambda_s,lambda_e);
+
+        if( lambda_min < 0.f && lambda_max > 1.f )
+            overlap = 1.f;
+        else if( lambda_max < 0.f || lambda_min > 1.f )
+            overlap = 0.f;
+        else if( lambda_min < 0.f )
+            overlap = lambda_max;
+        else if( lambda_max > 1.f )
+            overlap = 1.f - lambda_min;
+        else
+            overlap = lambda_max - lambda_min;
+    }
+    return overlap;
 }
 
 } //namespace ORB_SLAM

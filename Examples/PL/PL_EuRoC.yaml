@@ -131,8 +131,8 @@ max_kf_r_dist         : 15.0
 has_points         : 1      # 1 if using points
 has_lines          : 1      # 1 if using line segments
 use_fld_lines      : 0      # 1 if using FLD detector
-lr_in_parallel     : 1      # 1 if detecting and matching features in parallel
-pl_in_parallel     : 1      # 1 if detecting points and line segments in parallel
+lr_in_parallel     : 0      # 1 if detecting and matching features in parallel		1->0
+pl_in_parallel     : 0      # 1 if detecting points and line segments in parallel	1->0
 best_lr_matches    : 1      # 1 if double-checking the matches between the two images
 adaptative_fast    : 1      # 1 if using adaptative fast_threshold
 use_motion_model   : 0     # 1 if using constant motion model

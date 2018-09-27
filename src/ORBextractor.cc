@@ -62,7 +62,6 @@
 
 #include "ORBextractor.h"
 
-#include <Auxiliar.h>
 
 using namespace cv;
 using namespace line_descriptor;
@@ -1140,9 +1139,9 @@ Lineextractor::Lineextractor(int _lsd_nfeatures, double _llength_th, bool _bFLD)
 }
 Lineextractor::Lineextractor(int _lsd_nfeatures, double _llength_th, int _lsd_refine, double _lsd_scale, double _lsd_sigma_scale, 
     double _lsd_quant, double _lsd_ang_th, double _lsd_log_eps, double _lsd_density_th, int _lsd_n_bins, bool _bFLD)
-    :lsd_nfeatures(_lsd_nfeatures), min_line_length(_llength_th), bFLD(_bFLD), lsd_refine(_lsd_refine), lsd_scale(_lsd_scale),
+    :lsd_nfeatures(_lsd_nfeatures), min_line_length(_llength_th), lsd_refine(_lsd_refine), lsd_scale(_lsd_scale),
     lsd_sigma_scale(_lsd_sigma_scale), lsd_quant(_lsd_quant), lsd_ang_th(_lsd_ang_th), lsd_log_eps(_lsd_log_eps), 
-    lsd_density_th(_lsd_density_th), lsd_n_bins(_lsd_n_bins)
+    lsd_density_th(_lsd_density_th), lsd_n_bins(_lsd_n_bins), bFLD(_bFLD)
 {
 
 }
@@ -1169,7 +1168,7 @@ void Lineextractor::operator()( const cv::Mat& img, const cv::Mat& mask,
             opts.log_eps      = lsd_log_eps;
             opts.density_th   = lsd_density_th;
             opts.n_bins       = lsd_n_bins;
-            opts.min_length   = min_line_length;
+            opts.min_length   = min_line_length*(std::min(img.cols,img.rows));
             lsd->detect( img, keylines, lsd_scale, 1, opts);
             // filter keylines
             if( int(keylines.size())>lsd_nfeatures && lsd_nfeatures!=0  )

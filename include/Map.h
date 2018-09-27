@@ -33,6 +33,7 @@ namespace ORB_SLAM2
 {
 
 class MapPoint;
+class MapLine;
 class KeyFrame;
 
 class Map
@@ -42,7 +43,9 @@ public:
 
     void AddKeyFrame(KeyFrame* pKF);
     void AddMapPoint(MapPoint* pMP);
+    void AddMapLine(MapLine* pML);
     void EraseMapPoint(MapPoint* pMP);
+    void EraseMapLine(MapLine* pML);
     void EraseKeyFrame(KeyFrame* pKF);
     void SetReferenceMapPoints(const std::vector<MapPoint*> &vpMPs);
     void InformNewBigChange();
@@ -50,9 +53,11 @@ public:
 
     std::vector<KeyFrame*> GetAllKeyFrames();
     std::vector<MapPoint*> GetAllMapPoints();
+    std::vector<MapLine*> GetAllMapLines();
     std::vector<MapPoint*> GetReferenceMapPoints();
 
     long unsigned int MapPointsInMap();
+    long unsigned int MapLinesInMap();
     long unsigned  KeyFramesInMap();
 
     long unsigned int GetMaxKFid();
@@ -68,6 +73,7 @@ public:
 
 protected:
     std::set<MapPoint*> mspMapPoints;
+    std::set<MapLine*> mspMapLines;
     std::set<KeyFrame*> mspKeyFrames;
 
     std::vector<MapPoint*> mvpReferenceMapPoints;

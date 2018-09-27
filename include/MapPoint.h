@@ -28,6 +28,7 @@
 #include<opencv2/core/core.hpp>
 #include<mutex>
 
+
 namespace ORB_SLAM2
 {
 
@@ -140,6 +141,84 @@ protected:
      // Scale invariance distances
      float mfMinDistance;
      float mfMaxDistance;
+
+     Map* mpMap;
+
+     std::mutex mMutexPos;
+     std::mutex mMutexFeatures;
+};
+
+class MapLine
+{
+public:
+    MapLine(const Eigen::Vector3d &sP, const Eigen::Vector3d &eP, KeyFrame* pRefKF, Map* pMap);
+    MapLine(const Eigen::Vector3d &sP, const Eigen::Vector3d &eP,  Map* pMap, Frame* pFrame, const int &idxF);
+
+    void SetWorldPos(const Eigen::Vector3d &sP, const Eigen::Vector3d &eP);
+    Vector6d GetWorldPos();
+
+    KeyFrame* GetReferenceKeyFrame();
+
+    std::map<KeyFrame*,size_t> GetObservations();
+    int Observations();
+
+    void AddObservation(KeyFrame* pKF,size_t idx);
+    void EraseObservation(KeyFrame* pKF);
+
+    int GetIndexInKeyFrame(KeyFrame* pKF);
+    bool IsInKeyFrame(KeyFrame* pKF);
+
+    void SetBadFlag();
+    bool isBad();
+
+    void Replace(MapLine* pML);    
+    MapLine* GetReplaced();
+
+    void IncreaseVisible(int n=1);
+    void IncreaseFound(int n=1);
+    float GetFoundRatio();
+    inline int GetFound(){
+        return mnFound;
+    }
+    void ComputeDistinctiveDescriptors();
+
+    cv::Mat GetDescriptor();
+
+    void UpdateNormalAndDepth();
+
+public:
+    long unsigned int mnId;
+    static long unsigned int nNextId;
+    long int mnFirstKFid;
+    long int mnFirstFrame;
+    int nObs;
+
+    static std::mutex mGlobalMutex;
+
+     // Position in absolute coordinates
+     Eigen::Vector3d mWorldPos_sP;
+     Eigen::Vector3d mWorldPos_eP;
+
+     double sigma2;
+
+protected:    
+
+     // Keyframes observing the point and associated index in keyframe
+     std::map<KeyFrame*,size_t> mObservations;
+
+     // Best descriptor to fast matching
+     cv::Mat mDescriptor;
+
+     // Reference KeyFrame
+     KeyFrame* mpRefKF;
+
+     // Tracking counters
+     int mnVisible;
+     int mnFound;
+
+     // Bad flag (we do not currently erase MapPoint from memory)
+     bool mbBad;
+     MapLine* mpReplaced;
 
      Map* mpMap;
 

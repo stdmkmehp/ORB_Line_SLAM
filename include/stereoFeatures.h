@@ -46,10 +46,10 @@ public:
 
     PointFeature* safeCopy();
 
-    int idx;
     Vector2d pl, pl_obs;
     double   disp;
     Vector3d P;
+    int idx;
     bool inlier;
     int level;
     double sigma2 = 1.0;
@@ -103,12 +103,12 @@ public:
     ~LineFeature(){};
 
     LineFeature* safeCopy();
-
-    int idx;
+    
     Vector2d spl,epl, spl_obs, epl_obs;
     double   sdisp, edisp, angle, sdisp_obs, edisp_obs;
     Vector3d sP,eP;
     Vector3d le, le_obs;
+    int idx;
     bool inlier;
 
     int level;

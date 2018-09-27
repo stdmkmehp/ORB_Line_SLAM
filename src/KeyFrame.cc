@@ -34,12 +34,15 @@ KeyFrame::KeyFrame(Frame &F, Map *pMap, KeyFrameDatabase *pKFDB):
     mnTrackReferenceForFrame(0), mnFuseTargetForKF(0), mnBALocalForKF(0), mnBAFixedForKF(0),
     mnLoopQuery(0), mnLoopWords(0), mnRelocQuery(0), mnRelocWords(0), mnBAGlobalForKF(0),
     fx(F.fx), fy(F.fy), cx(F.cx), cy(F.cy), invfx(F.invfx), invfy(F.invfy),
-    mbf(F.mbf), mb(F.mb), mThDepth(F.mThDepth), N(F.N), mvKeys(F.mvKeys), mvKeysUn(F.mvKeysUn),
+    mbf(F.mbf), mb(F.mb), mThDepth(F.mThDepth), N(F.N), N_l(F.mvKeysUn_Line.size()), mvKeys(F.mvKeys), mvKeysUn(F.mvKeysUn),
     mvuRight(F.mvuRight), mvDepth(F.mvDepth), mDescriptors(F.mDescriptors.clone()),
+    mDescriptors_l(F.mDescriptors_Line.clone()),
     mBowVec(F.mBowVec), mFeatVec(F.mFeatVec), mnScaleLevels(F.mnScaleLevels), mfScaleFactor(F.mfScaleFactor),
     mfLogScaleFactor(F.mfLogScaleFactor), mvScaleFactors(F.mvScaleFactors), mvLevelSigma2(F.mvLevelSigma2),
     mvInvLevelSigma2(F.mvInvLevelSigma2), mnMinX(F.mnMinX), mnMinY(F.mnMinY), mnMaxX(F.mnMaxX),
-    mnMaxY(F.mnMaxY), mK(F.mK), mvpMapPoints(F.mvpMapPoints), mpKeyFrameDB(pKFDB),
+    mnMaxY(F.mnMaxY), mK(F.mK), mvpMapPoints(F.mvpMapPoints), 
+    mvpMapLines(F.mvpMapLines),
+    mpKeyFrameDB(pKFDB),
     mpORBvocabulary(F.mpORBvocabulary), mbFirstConnection(true), mpParent(NULL), mbNotErase(false),
     mbToBeErased(false), mbBad(false), mHalfBaseline(F.mb/2), mpMap(pMap)
 {
@@ -284,6 +287,85 @@ MapPoint* KeyFrame::GetMapPoint(const size_t &idx)
 {
     unique_lock<mutex> lock(mMutexFeatures);
     return mvpMapPoints[idx];
+}
+
+void KeyFrame::AddMapLine(MapLine *pML, const size_t &idx)
+{
+    unique_lock<mutex> lock(mMutexFeatures);
+    mvpMapLines[idx]=pML;
+}
+
+void KeyFrame::EraseMapLineMatch(const size_t &idx)
+{
+    unique_lock<mutex> lock(mMutexFeatures);
+    mvpMapLines[idx]=static_cast<MapLine*>(NULL);
+}
+
+void KeyFrame::EraseMapLineMatch(MapLine* pML)
+{
+    int idx = pML->GetIndexInKeyFrame(this);
+    if(idx>=0)
+        mvpMapLines[idx]=static_cast<MapLine*>(NULL);
+}
+
+
+void KeyFrame::ReplaceMapLineMatch(const size_t &idx, MapLine* pML)
+{
+    mvpMapLines[idx]=pML;
+}
+
+set<MapLine*> KeyFrame::GetMapLines()
+{
+    unique_lock<mutex> lock(mMutexFeatures);
+    set<MapLine*> s;
+    for(size_t i=0, iend=mvpMapLines.size(); i<iend; i++)
+    {
+        if(!mvpMapLines[i])
+            continue;
+        MapLine* pML = mvpMapLines[i];
+        if(!pML->isBad())
+            s.insert(pML);
+    }
+    return s;
+}
+
+int KeyFrame::TrackedMapLines(const int &minObs)
+{
+    unique_lock<mutex> lock(mMutexFeatures);
+
+    int nLines=0;
+    const bool bCheckObs = minObs>0;
+    for(int i=0; i<N; i++)
+    {
+        MapLine* pML = mvpMapLines[i];
+        if(pML)
+        {
+            if(!pML->isBad())
+            {
+                if(bCheckObs)
+                {
+                    if(mvpMapLines[i]->Observations()>=minObs)
+                        nLines++;
+                }
+                else
+                    nLines++;
+            }
+        }
+    }
+
+    return nLines;
+}
+
+vector<MapLine*> KeyFrame::GetMapLineMatches()
+{
+    unique_lock<mutex> lock(mMutexFeatures);
+    return mvpMapLines;
+}
+
+MapLine* KeyFrame::GetMapLine(const size_t &idx)
+{
+    unique_lock<mutex> lock(mMutexFeatures);
+    return mvpMapLines[idx];
 }
 
 void KeyFrame::UpdateConnections()

@@ -450,6 +450,881 @@ int Optimizer::PoseOptimization(Frame *pFrame)
     return nInitialCorrespondences-nBad;
 }
 
+bool Optimizer::isGoodSolution( Matrix4d DT, Matrix6d DTcov, double err )
+{
+    SelfAdjointEigenSolver<Matrix6d> eigensolver(DTcov);
+    Vector6d DT_cov_eig = eigensolver.eigenvalues();
+
+    // if( DT_cov_eig(0)<0.0 || DT_cov_eig(5)>1.0 || err < 0.0 || err > 1.0 || !is_finite(DT) )
+    if( DT_cov_eig(0)<0.0 || err < 0.0 || err > 1.0 || !is_finite(DT) )
+    {
+        cout << endl << "Not a good solution " <<DT_cov_eig(0) << "\t" << DT_cov_eig(5) << "\t" << err << endl;
+        return false;
+    }
+
+    return true;
+}
+
+void Optimizer::removeOutliers(Matrix4d DT, Frame *pFrame)
+{
+
+    //TODO: if not usig mad stdv, use just a fixed threshold (sqrt(7.815)) to filter outliers (with a single for loop...)
+    Matrix3d Rcw = DT.block<3,3>(0,0);
+    Vector3d tcw = DT.col(3).head(3);
+
+    {
+    unique_lock<mutex> lock(MapPoint::mGlobalMutex);
+
+
+    if (Config::hasPoints()) {
+        // point features
+        const int NP = pFrame->mvpMapPoints.size();
+        vector<double> res_p;
+        res_p.reserve(NP);
+        for(int i=0; i<NP; ++i)
+        {
+            MapPoint* pMP = pFrame->mvpMapPoints[i];
+            if(pMP)
+            {
+                cv::Mat Xw = pMP->GetWorldPos();
+                Eigen::Vector3d P_;
+                P_ << Xw.at<float>(0),Xw.at<float>(1),Xw.at<float>(2);
+                P_ = Rcw*P_+tcw;                                //convert point from world to camera
+                Eigen::Vector2d pl_proj = pFrame->projection( P_ );
+
+                const cv::KeyPoint &kpUn = pFrame->mvKeysUn[i];
+                Vector2d pl_obs;
+                pl_obs << kpUn.pt.x, kpUn.pt.y;
+                res_p.push_back( ( pl_proj - pl_obs ).norm() * pFrame->mvInvLevelSigma2[kpUn.octave] );
+                //res_p.push_back( ( pl_proj - (*it)->pl_obs ).norm() );
+            }
+        }
+        // estimate robust parameters
+        double p_stdv, p_mean, inlier_th_p;
+        //FIXME(done) : pMP may be nullptr
+        vector_mean_stdv_mad( res_p, p_mean, p_stdv );
+        inlier_th_p = Config::inlierK() * p_stdv;
+        //inlier_th_p = sqrt(7.815);
+        //cout << endl << p_mean << " " << p_stdv << "\t" << inlier_th_p << endl;
+        // filter outliers
+        for(int i=0; i<NP; ++i)
+        {
+            MapPoint* pMP = pFrame->mvpMapPoints[i];
+            if(pMP)
+            {   
+                if(fabs(res_p[i]-p_mean) > inlier_th_p)
+                {
+                    pFrame->mvbOutlier[i] = true;
+                    pFrame->n_inliers--;
+                    pFrame->n_inliers_pt--;
+                }
+                else if(pFrame->mvbOutlier[i])          //convert from outlier to inlier
+                {
+                    pFrame->mvbOutlier[i] = false;
+                    pFrame->n_inliers++;
+                    pFrame->n_inliers_pt++;
+                }
+            }
+        }
+    }
+
+    if (Config::hasLines()) {
+        // line segment features
+        const int NL = pFrame->mvpMapLines.size();
+        vector<double> res_l;
+        res_l.reserve(NL);
+        for(int i=0; i<NL; ++i)
+        {
+            MapLine* pML = pFrame->mvpMapLines[i];
+            if(pML)
+            {
+            //LineFeature* obs = pFrame->stereo_ls[i];
+                Vector3d l_obs = pFrame->mvle_l[i]; //obs->le_obs;
+
+                Vector3d sP_ = Rcw * pML->mWorldPos_sP + tcw;
+                Vector2d spl_proj = pFrame->projection( sP_ );
+                Vector3d eP_ = Rcw * pML->mWorldPos_eP + tcw;
+                Vector2d epl_proj = pFrame->projection( eP_ );
+
+                // projection error
+                Vector2d err_li;
+                err_li(0) = l_obs(0) * spl_proj(0) + l_obs(1) * spl_proj(1) + l_obs(2);
+                err_li(1) = l_obs(0) * epl_proj(0) + l_obs(1) * epl_proj(1) + l_obs(2);
+                res_l.push_back( err_li.norm() * sqrt( pML->sigma2 ) );
+                //res_l.push_back( err_li.norm() );
+            }
+        }
+
+        // estimate robust parameters
+        double l_stdv, l_mean, inlier_th_l;
+        vector_mean_stdv_mad( res_l, l_mean, l_stdv );
+        inlier_th_l = Config::inlierK() * l_stdv;
+        //inlier_th_p = sqrt(7.815);
+        //cout << endl << l_mean << " " << l_stdv << "\t" << inlier_th_l << endl << endl;
+
+        // filter outliers
+        for(int i=0; i<NL; ++i)
+        {
+            MapLine* pML = pFrame->mvpMapLines[i];
+            if(pML)
+            {
+                if(fabs(res_l[i]-l_mean) > inlier_th_l)
+                {
+                    pFrame->mvbOutlier_Line[i] = true;
+                    pFrame->n_inliers--;
+                    pFrame->n_inliers_ls--;
+                }
+                else if(pFrame->mvbOutlier_Line[i])     //convert from outlier to inlier
+                {
+                    pFrame->mvbOutlier_Line[i] = false;
+                    pFrame->n_inliers++;
+                    pFrame->n_inliers_ls++;
+                }
+            }
+        }
+    }
+
+    }
+
+    if (pFrame->n_inliers != (pFrame->n_inliers_pt + pFrame->n_inliers_ls))
+        throw runtime_error("[StVO; stereoFrameHandler] Assetion failed: n_inliers != (n_inliers_pt + n_inliers_ls)");
+}
+
+int Optimizer::PoseOptimizationWithLine(Frame *pFrame)
+{
+
+    // definitions
+    Matrix4d DT, DT_;
+    Matrix6d DT_cov;
+    double   err = numeric_limits<double>::max(), e_prev;
+    err = -1.0;
+
+    // set init pose (depending on the use of prior information or not, and on the goodness of previous solution)
+    if( Config::useMotionModel() )
+    {
+        DT     = Converter::toMatrix4d(pFrame->mTcw);       //T^C_W
+        DT_cov = pFrame->DT_cov;
+        e_prev = pFrame->err_norm;
+        if( !isGoodSolution(DT,DT_cov,e_prev) )
+            DT = Matrix4d::Identity();
+    }
+    else
+        DT = Matrix4d::Identity();
+
+    // optimization mode
+    int mode = 0;   // GN - GNR - LM
+
+    // solver
+    if( pFrame->n_inliers >= Config::minFeatures() )
+    {
+        // optimize
+        DT_ = DT;
+        if( mode == 0 )      gaussNewtonOptimization(DT_,DT_cov,err,Config::maxIters(), pFrame);
+        else if( mode == 1 ) gaussNewtonOptimizationRobust(DT_,DT_cov,err,Config::maxIters(), pFrame);
+        else if( mode == 2 ) levenbergMarquardtOptimization(DT_,DT_cov,err,Config::maxIters(), pFrame);
+
+        // remove outliers (implement some logic based on the covariance's eigenvalues and optim error)
+        if( isGoodSolution(DT_,DT_cov,err) )
+        {
+            removeOutliers(DT_, pFrame);
+            // refine without outliers
+            if( pFrame->n_inliers >= Config::minFeatures() )
+            {
+                if( mode == 0 )      gaussNewtonOptimization(DT,DT_cov,err,Config::maxItersRef(), pFrame);
+                else if( mode == 1 ) gaussNewtonOptimizationRobust(DT,DT_cov,err,Config::maxItersRef(), pFrame);
+                else if( mode == 2 ) levenbergMarquardtOptimization(DT,DT_cov,err,Config::maxItersRef(), pFrame);
+            }
+            else
+            {
+                DT     = Matrix4d::Identity();
+                cout << "[StVO] not enough inliers (after removal)" << endl;
+            }
+        }
+        else
+        {
+            gaussNewtonOptimizationRobust(DT,DT_cov,err,Config::maxItersRef(), pFrame);
+            //DT     = Matrix4d::Identity();
+            //cout << "[StVO] optimization didn't converge" << endl;
+        }
+    }
+    else
+    {
+        DT     = Matrix4d::Identity();
+        cout << "[StVO] not enough inliers (before optimization)" << endl;
+    }
+
+
+    // set estimated pose
+    if( isGoodSolution(DT,DT_cov,err) && DT != Matrix4d::Identity() )
+    {
+        // pFrame->DT       = expmap_se3(logmap_se3( inverse_se3( DT ) ));
+        pFrame->mTcw      = Converter::toCvMat(expmap_se3(logmap_se3(DT)));
+        pFrame->DT_cov   = DT_cov;
+        pFrame->err_norm = err;
+        // pFrame->Tfw      = expmap_se3(logmap_se3( pFrame->Tfw * pFrame->DT ));
+        // pFrame->Tfw_cov  = unccomp_se3( pFrame->Tfw, pFrame->Tfw_cov, DT_cov );
+        SelfAdjointEigenSolver<Matrix6d> eigensolver(DT_cov);
+        pFrame->DT_cov_eig = eigensolver.eigenvalues();
+    }
+    else
+    {
+        cout<<"Can not estimate current frame pose, set Identity!"<<endl;
+        //setAsOutliers();
+        DT = Matrix4d::Identity();
+        pFrame->mTcw       = Converter::toCvMat(DT);
+        pFrame->DT_cov   = Matrix6d::Zero();
+        pFrame->err_norm = -1.0;
+        // pFrame->Tfw      = pFrame->Tfw;
+        // pFrame->Tfw_cov  = pFrame->Tfw_cov;
+        pFrame->DT_cov_eig = Vector6d::Zero();
+    }
+    return 0;
+}
+
+void Optimizer::gaussNewtonOptimization(Matrix4d &DT, Matrix6d &DT_cov, double &err_, int max_iters, Frame* pFrame)
+{
+    Matrix6d H;
+    Vector6d g, DT_inc;
+    double err, err_prev = 999999999.9;
+
+    int iters;
+    for( iters = 0; iters < max_iters; iters++)
+    {
+        // estimate hessian and gradient (select)
+        optimizeFunctions( DT, H, g, err, pFrame);
+        if (err > err_prev) {
+            if (iters > 0)
+                break;
+            err_ = -1.0;
+            return;
+        }
+        // if the difference is very small stop
+        if( ( ( err < Config::minError()) || abs(err-err_prev) < Config::minErrorChange() ) ) {
+            cout << "[StVO] Small optimization improvement" << endl;
+            break;
+        }
+        // update step
+        ColPivHouseholderQR<Matrix6d> solver(H);
+        DT_inc = solver.solve(g);
+        DT  << DT * inverse_se3( expmap_se3(DT_inc) );
+        // if the parameter change is small stop
+        if( DT_inc.head(3).norm() < Config::minErrorChange() && DT_inc.tail(3).norm() < Config::minErrorChange()) {
+            cout << "[StVO] Small optimization solution variance" << endl;
+            break;
+        }
+        // update previous values
+        err_prev = err;
+    }
+
+    DT_cov = H.inverse();  //DT_cov = Matrix6d::Identity();
+    err_   = err;
+}
+
+void Optimizer::gaussNewtonOptimizationRobust(Matrix4d &DT, Matrix6d &DT_cov, double &err_, int max_iters, Frame* pFrame)
+{
+
+    Matrix4d DT_;
+    Matrix6d H;
+    Vector6d g, DT_inc;
+    double err, err_prev = 999999999.9;
+    bool solution_is_good = true;
+    DT_ = DT;
+
+    // plot initial solution
+    int iters;
+    for( iters = 0; iters < max_iters; iters++)
+    {
+        // estimate hessian and gradient (select)
+        optimizeFunctionsRobust( DT, H, g, err, pFrame);
+        // if the difference is very small stop
+        if( ( fabs(err-err_prev) < Config::minErrorChange() ) || ( err < Config::minError()) )// || err > err_prev )
+            break;
+        // update step
+        ColPivHouseholderQR<Matrix6d> solver(H);
+        DT_inc = solver.solve(g);
+        if( solver.logAbsDeterminant() < 0.0 || solver.info() != Success )
+        {
+            solution_is_good = false;
+            break;
+        }
+        DT  << DT * inverse_se3( expmap_se3(DT_inc) );
+        // if the parameter change is small stop (TODO: change with two parameters, one for R and another one for t)
+        if( DT_inc.norm() < Config::minErrorChange() )
+            break;
+        // update previous values
+        err_prev = err;
+    }
+
+    if( solution_is_good )
+    {
+        DT_cov = H.inverse();  //DT_cov = Matrix6d::Identity();
+        err_   = err;
+    }
+    else
+    {
+        DT = DT_;
+        err_ = -1.0;
+        DT_cov = Matrix6d::Identity();
+    }
+
+}
+
+void Optimizer::levenbergMarquardtOptimization(Matrix4d &DT, Matrix6d &DT_cov, double &err_, int max_iters, Frame* pFrame)
+{
+    Matrix6d H;
+    Vector6d g, DT_inc;
+    double err, err_prev = 999999999.9;
+
+    double lambda   = 0.000000001;
+    double lambda_k = 4.0;
+
+    // form the first iteration
+    //    optimizeFunctionsRobust( DT, H, g, err, pFrame);
+    optimizeFunctions( DT, H, g, err, pFrame);
+
+    // initial guess of lambda
+    double Hmax = 0.0;
+    for( int i = 0; i < 6; i++)
+    {
+        if( H(i,i) > Hmax || H(i,i) < -Hmax )
+            Hmax = fabs( H(i,i) );
+    }
+    lambda *= Hmax;
+
+    // solve the first iteration
+    for(int i = 0; i < 6; i++)
+        H(i,i) += lambda;// * H(i,i) ;
+    ColPivHouseholderQR<Matrix6d> solver(H);
+    DT_inc = solver.solve(g);
+    DT  << DT * inverse_se3( expmap_se3(DT_inc) );
+    err_prev = err;
+
+    // start Levenberg-Marquardt minimization
+    //plotStereoFrameProjerr(DT,0);
+    for( int iters = 1; iters < max_iters; iters++)
+    {
+        // estimate hessian and gradient (select)
+    //        optimizeFunctionsRobust( DT, H, g, err, pFrame);
+        optimizeFunctions( DT, H, g, err, pFrame);
+        // if the difference is very small stop
+        if( ( fabs(err-err_prev) < Config::minErrorChange() ) || ( err < Config::minError()) )
+            break;
+        // add lambda to hessian
+        for(int i = 0; i < 6; i++)
+            H(i,i) += lambda;// * H(i,i) ;
+        // update step
+        ColPivHouseholderQR<Matrix6d> solver(H);
+        DT_inc = solver.solve(g);
+        // update lambda
+        if( err > err_prev )
+            lambda /= lambda_k;
+        else
+        {
+            lambda *= lambda_k;
+            DT  << DT * inverse_se3( expmap_se3(DT_inc) );
+        }
+        // plot each iteration
+        //plotStereoFrameProjerr(DT,iters+1);
+        // if the parameter change is small stop
+        if( DT_inc.head(3).norm() < Config::minErrorChange() && DT_inc.tail(3).norm() < Config::minErrorChange())
+            break;
+        // update previous values
+        err_prev = err;
+    }
+
+    DT_cov = H.inverse();  //DT_cov = Matrix6d::Identity();
+    err_   = err;
+}
+
+void Optimizer::optimizeFunctions(Matrix4d DT, Matrix6d &H, Vector6d &g, double &e, Frame* pFrame)
+{
+
+    // define hessians, gradients, and residuals
+    Matrix6d H_l, H_p;
+    Vector6d g_l, g_p;
+    double   e_l = 0.0, e_p = 0.0;
+    // double S_l, S_p;
+    H   = Matrix6d::Zero(); H_l = H; H_p = H;
+    g   = Vector6d::Zero(); g_l = g; g_p = g;
+    e   = 0.0;
+
+    // point features
+    int N_p = 0;        // orbslam number of point features
+    int N_l = 0;
+    int nInitialCorrespondences = 0;
+    Matrix3d Rcw = DT.block<3,3>(0,0);
+    Vector3d tcw = DT.col(3).head(3);
+
+    {
+    unique_lock<mutex> lock(MapPoint::mGlobalMutex);
+    // from matched_pt to mvpMapPoints
+    const int NP = pFrame->mvpMapPoints.size();
+    for(int i=0; i<NP; ++i)
+    {
+        MapPoint* pMP = pFrame->mvpMapPoints[i];
+        if(pMP)
+        // if( (*it)->inlier )
+        {
+            nInitialCorrespondences++;
+            pFrame->mvbOutlier[i] = false;
+
+            const cv::KeyPoint &kpUn = pFrame->mvKeysUn[i];
+            Vector2d obs;
+            obs << kpUn.pt.x, kpUn.pt.y;
+
+            cv::Mat Xw = pMP->GetWorldPos();
+            Vector3d P_;
+            P_ << Xw.at<float>(0),Xw.at<float>(1),Xw.at<float>(2);
+            P_ = Rcw*P_+tcw;                                //convert point from world to camera
+            Vector2d proj = pFrame->projection( P_ );
+
+            // projection error
+            Vector2d err_i    = proj - obs;
+            double err_i_norm = err_i.norm();
+            // estimate variables for J, H, and g
+            double gx   = P_(0);
+            double gy   = P_(1);
+            double gz   = P_(2);
+            double gz2  = gz*gz;
+            double fgz2 = pFrame->fx / std::max(Config::homogTh(),gz2);
+            double dx   = err_i(0);
+            double dy   = err_i(1);
+            // jacobian
+            Vector6d J_aux;
+            J_aux << + fgz2 * dx * gz,
+                     + fgz2 * dy * gz,
+                     - fgz2 * ( gx*dx + gy*dy ),
+                     - fgz2 * ( gx*gy*dx + gy*gy*dy + gz*gz*dy ),
+                     + fgz2 * ( gx*gx*dx + gz*gz*dx + gx*gy*dy ),
+                     + fgz2 * ( gx*gz*dy - gy*gz*dx );
+            J_aux = J_aux / std::max(Config::homogTh(),err_i_norm);
+            // define the residue
+            const float invSigma2 = pFrame->mvInvLevelSigma2[kpUn.octave];
+            double r = err_i_norm * sqrt(invSigma2);
+            // if employing robust cost function
+            double w  = 1.0;
+            w = robustWeightCauchy(r) ;
+
+            // if down-weighting far samples
+            //double zdist   = P_(2) * 1.0 / ( cam->getB()*cam->getFx());
+            //if( false ) w *= 1.0 / ( s2 + zdist * zdist );
+
+            // update hessian, gradient, and error
+            H_p += J_aux * J_aux.transpose() * w;
+            g_p += J_aux * r * w;
+            e_p += r * r * w;
+            N_p++;
+        }
+    }
+    }   // end of unique_lock<mutex> lock(MapPoint::mGlobalMutex);
+    // line segment features
+    {
+    unique_lock<mutex> lock(MapPoint::mGlobalMutex);
+    const int NL = pFrame->mvpMapLines.size();
+    for(int i=0; i<NL; ++i)
+    {
+        MapLine* pML = pFrame->mvpMapLines[i];
+        if(pML)
+        {
+            nInitialCorrespondences++;
+            //LineFeature* obs = pFrame->stereo_ls[i];
+            Vector3d l_obs = pFrame->mvle_l[i]; //obs->le_obs;
+
+            Vector3d sP_ = Rcw * pML->mWorldPos_sP + tcw;
+            Vector2d spl_proj = pFrame->projection( sP_ );
+            Vector3d eP_ = Rcw * pML->mWorldPos_eP + tcw;
+            Vector2d epl_proj = pFrame->projection( eP_ );
+            // projection error
+            Vector2d err_i;
+            err_i(0) = l_obs(0) * spl_proj(0) + l_obs(1) * spl_proj(1) + l_obs(2);
+            err_i(1) = l_obs(0) * epl_proj(0) + l_obs(1) * epl_proj(1) + l_obs(2);
+            double err_i_norm = err_i.norm();
+            // estimate variables for J, H, and g
+            // -- start point
+            double gx   = sP_(0);
+            double gy   = sP_(1);
+            double gz   = sP_(2);
+            double gz2  = gz*gz;
+            double fgz2 = pFrame->fx / std::max(Config::homogTh(),gz2);
+            double ds   = err_i(0);
+            double de   = err_i(1);
+            double lx   = l_obs(0);
+            double ly   = l_obs(1);
+            Vector6d Js_aux;
+            Js_aux << + fgz2 * lx * gz,
+                      + fgz2 * ly * gz,
+                      - fgz2 * ( gx*lx + gy*ly ),
+                      - fgz2 * ( gx*gy*lx + gy*gy*ly + gz*gz*ly ),
+                      + fgz2 * ( gx*gx*lx + gz*gz*lx + gx*gy*ly ),
+                      + fgz2 * ( gx*gz*ly - gy*gz*lx );
+            // -- end point
+            gx   = eP_(0);
+            gy   = eP_(1);
+            gz   = eP_(2);
+            gz2  = gz*gz;
+            fgz2 = pFrame->fx / std::max(Config::homogTh(),gz2);
+            Vector6d Je_aux, J_aux;
+            Je_aux << + fgz2 * lx * gz,
+                      + fgz2 * ly * gz,
+                      - fgz2 * ( gx*lx + gy*ly ),
+                      - fgz2 * ( gx*gy*lx + gy*gy*ly + gz*gz*ly ),
+                      + fgz2 * ( gx*gx*lx + gz*gz*lx + gx*gy*ly ),
+                      + fgz2 * ( gx*gz*ly - gy*gz*lx );
+            // jacobian
+            J_aux = ( Js_aux * ds + Je_aux * de ) / std::max(Config::homogTh(),err_i_norm);
+
+            // define the residue
+            double s2 = pML->sigma2;
+            double r = err_i_norm * sqrt(s2);
+
+            // if employing robust cost function
+            double w  = 1.0;
+            w = robustWeightCauchy(r) ;
+
+            // estimating overlap between line segments
+            bool has_overlap = true;
+            Vector2d spl_obs = Vector2d(pFrame->mvKeysUn_Line[i].startPointX,pFrame->mvKeysUn_Line[i].startPointY);
+            Vector2d epl_obs = Vector2d(pFrame->mvKeysUn_Line[i].endPointX,pFrame->mvKeysUn_Line[i].endPointY);
+            double overlap = pFrame->lineSegmentOverlap( spl_obs, epl_obs, spl_proj, epl_proj );
+            if( has_overlap )
+                w *= overlap;
+
+            // if down-weighting far samples
+            /*double zdist = max( sP_(2), eP_(2) ) / ( cam->getB()*cam->getFx());
+            if( false )
+                w *= 1.0 / ( s2 + zdist * zdist );*/
+
+            // update hessian, gradient, and error
+            H_l += J_aux * J_aux.transpose() * w;
+            g_l += J_aux * r * w;
+            e_l += r * r * w;
+            N_l++;
+        }
+    }
+    }   // end of unique_lock<mutex> lock(MapPoint::mGlobalMutex);
+
+    // sum H, g and err from both points and lines
+    H = H_p + H_l;
+    g = g_p + g_l;
+    e = e_p + e_l;
+
+    // normalize error
+    e /= (N_l+N_p);
+
+}
+
+void Optimizer::optimizeFunctionsRobust(Matrix4d DT, Matrix6d &H, Vector6d &g, double &e, Frame* pFrame)
+{
+
+    // define hessians, gradients, and residuals
+    Matrix6d H_l, H_p;
+    Vector6d g_l, g_p;
+    double e_l = 0.0, e_p = 0.0;
+    // double S_l, S_p;
+    H   = Matrix6d::Zero(); H_l = H; H_p = H;
+    g   = Vector6d::Zero(); g_l = g; g_p = g;
+    e   = 0.0;
+
+    vector<double> res_p, res_l;
+
+    int nInitialCorrespondences = 0;
+    Matrix3d Rcw = DT.block<3,3>(0,0);
+    Vector3d tcw = DT.col(3).head(3);
+
+    {
+    unique_lock<mutex> lock(MapPoint::mGlobalMutex);
+    // point features pre-weight computation
+    const int NP = pFrame->mvpMapPoints.size();
+    for(int i=0; i<NP; ++i)
+    {
+        MapPoint* pMP = pFrame->mvpMapPoints[i];
+        if(pMP)
+        {
+            nInitialCorrespondences++;
+            cv::Mat Xw = pMP->GetWorldPos();
+            Vector3d P_;
+            P_ << Xw.at<float>(0),Xw.at<float>(1),Xw.at<float>(2);
+            P_ = Rcw*P_+tcw;                                //convert point from world to camera
+            Vector2d proj = pFrame->projection( P_ );
+
+            const cv::KeyPoint &kpUn = pFrame->mvKeysUn[i];
+            Vector2d obs;
+            obs << kpUn.pt.x, kpUn.pt.y;
+
+            // projection error
+            Vector2d err_i    = proj - obs;
+            res_p.push_back( err_i.norm());
+        }
+    }
+
+    // line segment features pre-weight computation
+    for(int i=0; i<NP; ++i)
+    {
+        MapLine* pML = pFrame->mvpMapLines[i];
+        if(pML)
+        {
+            nInitialCorrespondences++;
+            //LineFeature* obs = pFrame->stereo_ls[i];
+            Vector3d l_obs = pFrame->mvle_l[i]; //obs->le_obs;
+
+            Vector3d sP_ = Rcw * pML->mWorldPos_sP + tcw;
+            Vector2d spl_proj = pFrame->projection( sP_ );
+            Vector3d eP_ = Rcw * pML->mWorldPos_eP + tcw;
+            Vector2d epl_proj = pFrame->projection( eP_ );
+
+            // projection error
+            Vector2d err_i;
+            err_i(0) = l_obs(0) * spl_proj(0) + l_obs(1) * spl_proj(1) + l_obs(2);
+            err_i(1) = l_obs(0) * epl_proj(0) + l_obs(1) * epl_proj(1) + l_obs(2);
+            res_l.push_back( err_i.norm() );
+        }
+    }
+    }
+    // estimate scale of the residuals
+    double s_p = 1.0, s_l = 1.0;
+    double th_min = 0.0001;
+    double th_max = sqrt(7.815);
+
+    if( false )
+    {
+
+        res_p.insert( res_p.end(), res_l.begin(), res_l.end() );
+        s_p = vector_stdv_mad( res_p );
+
+        //cout << s_p << "\t";
+        //if( res_p.size() < 4*Config::minFeatures() )
+            //s_p = 1.0;
+        //cout << s_p << endl;
+
+        if( s_p < th_min )
+            s_p = th_min;
+        if( s_p > th_max )
+            s_p = th_max;
+
+        s_l = s_p;
+
+    }
+    else
+    {
+
+        s_p = vector_stdv_mad( res_p );
+        s_l = vector_stdv_mad( res_l );
+
+        if( s_p < th_min )
+            s_p = th_min;
+        if( s_p > th_max )
+            s_p = th_max;
+
+        if( s_l < th_min )
+            s_l = th_min;
+        if( s_l > th_max )
+            s_l = th_max;
+    }
+
+    // point features
+    int N_p = 0;
+    int N_l = 0;
+
+    {
+    unique_lock<mutex> lock(MapPoint::mGlobalMutex);
+    const int NL = pFrame->mvpMapPoints.size();
+    for(int i=0; i<NL; ++i)
+    {
+        MapPoint* pMP = pFrame->mvpMapPoints[i];
+        if(pMP)
+        {
+            cv::Mat Xw = pMP->GetWorldPos();
+            Vector3d P_;
+            P_ << Xw.at<float>(0),Xw.at<float>(1),Xw.at<float>(2);
+            P_ = Rcw*P_+tcw;                                //convert point from world to camera
+            Vector2d pl_proj = pFrame->projection( P_ );
+
+            const cv::KeyPoint &kpUn = pFrame->mvKeysUn[i];
+            Vector2d pl_obs;
+            pl_obs << kpUn.pt.x, kpUn.pt.y;
+
+            // projection error
+            Vector2d err_i    = pl_proj - pl_obs;
+            double err_i_norm = err_i.norm();
+            // estimate variables for J, H, and g
+            double gx   = P_(0);
+            double gy   = P_(1);
+            double gz   = P_(2);
+            double gz2  = gz*gz;
+            double fgz2 = pFrame->fx / std::max(Config::homogTh(),gz2);
+            double dx   = err_i(0);
+            double dy   = err_i(1);
+            // jacobian
+            Vector6d J_aux;
+            J_aux << + fgz2 * dx * gz,
+                     + fgz2 * dy * gz,
+                     - fgz2 * ( gx*dx + gy*dy ),
+                     - fgz2 * ( gx*gy*dx + gy*gy*dy + gz*gz*dy ),
+                     + fgz2 * ( gx*gx*dx + gz*gz*dx + gx*gy*dy ),
+                     + fgz2 * ( gx*gz*dy - gy*gz*dx );
+            J_aux = J_aux / std::max(Config::homogTh(),err_i_norm);
+            // define the residue
+            double s2 = pFrame->mvInvLevelSigma2[kpUn.octave];
+            double r = err_i_norm ;
+            // if employing robust cost function
+            double w  = 1.0;
+            double x = r / s_p;
+            w = robustWeightCauchy(x) ;
+
+            // if using uncertainty weights
+            //----------------------------------------------------
+            if( false )
+            /*
+            {
+            
+                Matrix2d covp;
+                Matrix3d covP_ = pMP->covP_an;
+                MatrixXd J_Pp(2,3), J_pr(1,2);
+                // uncertainty of the projection
+                J_Pp  << gz, 0.f, -gx, 0.f, gz, -gy;
+                J_Pp  << J_Pp * DT.block(0,0,3,3);
+                covp  << J_Pp * covP_ * J_Pp.transpose();
+                covp  << covp / std::max(Config::homogTh(),gz2*gz2);               // Covariance of the 3D projection \hat{p} up to f2*b2*sigma2
+                covp  = sqrt(s2) * cam->getB()* cam->getFx() * covp;
+                covp(0,0) += s2;
+                covp(1,1) += s2;
+                // Point Uncertainty constants
+                    // bsigmaP   = f * baseline * sigmaP;
+                    // bsigmaP   = bsigmaP * bsigmaP;
+                    // bsigmaP_inv   = 1.f / bsigmaP;
+                    // sigmaP2       = sigmaP * sigmaP;
+                    // sigmaP2_inv   = 1.f / sigmaP2;
+                    // // Line Uncertainty constants
+                    // bsigmaL   = baseline * sigmaL;
+                    // bsigmaL   = bsigmaL * bsigmaL;
+                    // bsigmaL_inv   = 1.f / bsigmaL;
+                // uncertainty of the residual
+                J_pr << dx / r, dy / r;
+                double cov_res = (J_pr * covp * J_pr.transpose())(0);
+                cov_res = 1.0 / std::max(Config::homogTh(),cov_res);
+                double zdist   = P_(2) * 1.0 / ( cam->getB()*cam->getFx());
+
+                //zdist   = 1.0 / std::max(Config::homogTh(),zdist);
+                    // cout.setf(ios::fixed,ios::floatfield); cout.precision(8);
+                    // cout << endl << cov_res << " " << 1.0 / cov_res << " " << zdist << " " << 1.0 / zdist << " " << 1.0 / (zdist*40.0) << "\t"
+                    //      << 1.0 / ( 1.0 +  cov_res * cov_res + zdist * zdist ) << " \t"
+                    //      << 1.0 / ( cov_res * cov_res + zdist * zdist )
+                    //      << endl;
+                    // cout.setf(ios::fixed,ios::floatfield); cout.precision(3);
+                //w *= 1.0 / ( cov_res * cov_res + zdist * zdist );
+                w *= 1.0 / ( s2 + zdist * zdist );
+            
+            }
+            */
+
+            //----------------------------------------------------
+
+            // update hessian, gradient, and error
+            H_p += J_aux * J_aux.transpose() * w;
+            g_p += J_aux * r * w;
+            e_p += r * r * w;
+            N_p++;
+        }
+    }
+
+    // line segment features
+    for(int i=0; i<NL; ++i)
+    {
+        MapLine* pML = pFrame->mvpMapLines[i];
+        if(pML)
+        {
+            //LineFeature* obs = pFrame->stereo_ls[i];
+            Vector3d l_obs = pFrame->mvle_l[i]; //obs->le_obs;
+
+            Vector3d sP_ = Rcw * pML->mWorldPos_sP + tcw;
+            Vector2d spl_proj = pFrame->projection( sP_ );
+            Vector3d eP_ = Rcw * pML->mWorldPos_eP + tcw;
+            Vector2d epl_proj = pFrame->projection( eP_ );
+
+            // projection error
+            Vector2d err_i;
+            err_i(0) = l_obs(0) * spl_proj(0) + l_obs(1) * spl_proj(1) + l_obs(2);
+            err_i(1) = l_obs(0) * epl_proj(0) + l_obs(1) * epl_proj(1) + l_obs(2);
+            double err_i_norm = err_i.norm();
+            // estimate variables for J, H, and g
+            // -- start point
+            double gx   = sP_(0);
+            double gy   = sP_(1);
+            double gz   = sP_(2);
+            double gz2  = gz*gz;
+            double fgz2 = pFrame->fx / std::max(Config::homogTh(),gz2);
+            double ds   = err_i(0);
+            double de   = err_i(1);
+            double lx   = l_obs(0);
+            double ly   = l_obs(1);
+            Vector6d Js_aux;
+            Js_aux << + fgz2 * lx * gz,
+                      + fgz2 * ly * gz,
+                      - fgz2 * ( gx*lx + gy*ly ),
+                      - fgz2 * ( gx*gy*lx + gy*gy*ly + gz*gz*ly ),
+                      + fgz2 * ( gx*gx*lx + gz*gz*lx + gx*gy*ly ),
+                      + fgz2 * ( gx*gz*ly - gy*gz*lx );
+            // -- end point
+            gx   = eP_(0);
+            gy   = eP_(1);
+            gz   = eP_(2);
+            gz2  = gz*gz;
+            fgz2 = pFrame->fx / std::max(Config::homogTh(),gz2);
+            Vector6d Je_aux, J_aux;
+            Je_aux << + fgz2 * lx * gz,
+                      + fgz2 * ly * gz,
+                      - fgz2 * ( gx*lx + gy*ly ),
+                      - fgz2 * ( gx*gy*lx + gy*gy*ly + gz*gz*ly ),
+                      + fgz2 * ( gx*gx*lx + gz*gz*lx + gx*gy*ly ),
+                      + fgz2 * ( gx*gz*ly - gy*gz*lx );
+            // jacobian
+            J_aux = ( Js_aux * ds + Je_aux * de ) / std::max(Config::homogTh(),err_i_norm);
+            // define the residue
+            double s2 = pML->sigma2;
+            double r = err_i_norm;
+            // if employing robust cost function
+            double w  = 1.0;
+            double x = r / s_l;
+            w = robustWeightCauchy(x) ;
+            // estimating overlap between line segments
+            bool has_overlap = true;
+            Vector2d spl_obs = Vector2d(pFrame->mvKeysUn_Line[i].startPointX,pFrame->mvKeysUn_Line[i].startPointY);
+            Vector2d epl_obs = Vector2d(pFrame->mvKeysUn_Line[i].endPointX,pFrame->mvKeysUn_Line[i].endPointY);
+            double overlap = pFrame->lineSegmentOverlap( spl_obs, epl_obs, spl_proj, epl_proj );
+            if( has_overlap )
+                w *= overlap;
+
+            //----------------- DEBUG: 27/11/2017 ----------------------
+            if( false )
+            {
+                /*
+                //double cov3d = (*it)->cov3d;
+                //cov3d = 1.0;
+                //w *= 1.0 / ( 1.0 +  cov3d * cov3d + zdist * zdist );
+                double zdist = max( sP_(2), eP_(2) ) / ( cam->getB()*cam->getFx());
+                w *= 1.0 / ( s2 + zdist * zdist );
+                */
+            }
+            //----------------------------------------------------------
+
+            // update hessian, gradient, and error
+            H_l += J_aux * J_aux.transpose() * w;
+            g_l += J_aux * r * w;
+            e_l += r * r * w;
+            N_l++;
+        }
+    }
+    }
+    // sum H, g and err from both points and lines
+    H = H_p + H_l;
+    g = g_p + g_l;
+    e = e_p + e_l;
+
+    // normalize error
+    e /= (N_l+N_p);
+
+}
+
 void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap)
 {    
     // Local KeyFrames: First Breath Search from Current Keyframe

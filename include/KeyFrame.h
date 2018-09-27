@@ -37,8 +37,11 @@ namespace ORB_SLAM2
 
 class Map;
 class MapPoint;
+class MapLine;
 class Frame;
 class KeyFrameDatabase;
+
+class LineFeature;
 
 class KeyFrame
 {
@@ -89,6 +92,16 @@ public:
     std::vector<MapPoint*> GetMapPointMatches();
     int TrackedMapPoints(const int &minObs);
     MapPoint* GetMapPoint(const size_t &idx);
+
+    // MapLine observation functions
+    void AddMapLine(MapLine* pML, const size_t &idx);
+    void EraseMapLineMatch(const size_t &idx);
+    void EraseMapLineMatch(MapLine* pML);
+    void ReplaceMapLineMatch(const size_t &idx, MapLine* pML);
+    std::set<MapLine*> GetMapLines();
+    std::vector<MapLine*> GetMapLineMatches();
+    int TrackedMapLines(const int &minObs);
+    MapLine* GetMapLine(const size_t &idx);
 
     // KeyPoint functions
     std::vector<size_t> GetFeaturesInArea(const float &x, const float  &y, const float  &r) const;
@@ -156,8 +169,9 @@ public:
     // Calibration parameters
     const float fx, fy, cx, cy, invfx, invfy, mbf, mb, mThDepth;
 
-    // Number of KeyPoints
+    // Number of KeyPoints and KeyLines
     const int N;
+    const int N_l;
 
     // KeyPoints, stereo coordinate and descriptors (all associated by an index)
     const std::vector<cv::KeyPoint> mvKeys;
@@ -166,9 +180,16 @@ public:
     const std::vector<float> mvDepth; // negative value for monocular points
     const cv::Mat mDescriptors;
 
+    // KeyLines
+    const cv::Mat mDescriptors_l;
+
     //BoW
     DBoW2::BowVector mBowVec;
     DBoW2::FeatureVector mFeatVec;
+
+    // TODO Line BoW
+    DBoW2::BowVector mBowVec_l;
+    DBoW2::FeatureVector mFeatVec_l;
 
     // Pose relative to parent (this is computed when bad flag is activated)
     cv::Mat mTcp;
@@ -201,6 +222,7 @@ protected:
 
     // MapPoints associated to keypoints
     std::vector<MapPoint*> mvpMapPoints;
+    std::vector<MapLine*> mvpMapLines;
 
     // BoW
     KeyFrameDatabase* mpKeyFrameDB;
