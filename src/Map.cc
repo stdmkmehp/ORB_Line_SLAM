@@ -82,6 +82,12 @@ void Map::SetReferenceMapPoints(const vector<MapPoint *> &vpMPs)
     mvpReferenceMapPoints = vpMPs;
 }
 
+void Map::SetReferenceMapLines(const vector<MapLine *> &vpMLs)
+{
+    unique_lock<mutex> lock(mMutexMap);
+    mvpReferenceMapLines = vpMLs;
+}
+
 void Map::InformNewBigChange()
 {
     unique_lock<mutex> lock(mMutexMap);
@@ -136,6 +142,12 @@ vector<MapPoint*> Map::GetReferenceMapPoints()
     return mvpReferenceMapPoints;
 }
 
+vector<MapLine*> Map::GetReferenceMapLines()
+{
+    unique_lock<mutex> lock(mMutexMap);
+    return mvpReferenceMapLines;
+}
+
 long unsigned int Map::GetMaxKFid()
 {
     unique_lock<mutex> lock(mMutexMap);
@@ -158,6 +170,7 @@ void Map::clear()
     mspKeyFrames.clear();
     mnMaxKFid = 0;
     mvpReferenceMapPoints.clear();
+    mvpReferenceMapLines.clear();
     mvpKeyFrameOrigins.clear();
 }
 

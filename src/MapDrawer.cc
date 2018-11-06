@@ -80,6 +80,50 @@ void MapDrawer::DrawMapPoints()
     glEnd();
 }
 
+void MapDrawer::DrawMapLines()
+{
+    const vector<MapLine*> &vpMLs = mpMap->GetAllMapLines();
+    const vector<MapLine*> &vpRefMLs = mpMap->GetReferenceMapLines();
+
+    set<MapLine*> spRefMLs(vpRefMLs.begin(), vpRefMLs.end());
+
+    if(vpMLs.empty())
+        return;
+
+    float mLineSize = 1.0;
+
+    glLineWidth(mLineSize);
+    glColor3f(0.0,0.0,0.0);
+    glBegin(GL_LINES);
+    for(size_t i=0, iend=vpMLs.size(); i<iend;i++)
+    {
+        if(vpMLs[i]->isBad() || spRefMLs.count(vpMLs[i]))
+            continue;
+        Vector6d sep = vpMLs[i]->GetWorldPos();
+        Vector3d sp_eigen = sep.head(3);
+        Vector3d ep_eigen = sep.tail(3);
+        glVertex3f(static_cast<float>(sp_eigen(0)),static_cast<float>(sp_eigen(1)),static_cast<float>(sp_eigen(2)));
+        glVertex3f(static_cast<float>(ep_eigen(0)),static_cast<float>(ep_eigen(1)),static_cast<float>(ep_eigen(2)));
+    }
+    glEnd();
+
+    glPointSize(mLineSize);
+    glColor3f(1.0,0.0,1.0);
+    glBegin(GL_LINES);
+    for(set<MapLine*>::iterator sit=spRefMLs.begin(), send=spRefMLs.end(); sit!=send; sit++)
+    {
+        if((*sit)->isBad())
+            continue;
+        Vector6d sep = (*sit)->GetWorldPos();
+        Vector3d sp_eigen = sep.head(3);
+        Vector3d ep_eigen = sep.tail(3);
+        glVertex3f(static_cast<float>(sp_eigen(0)),static_cast<float>(sp_eigen(1)),static_cast<float>(sp_eigen(2)));
+        glVertex3f(static_cast<float>(ep_eigen(0)),static_cast<float>(ep_eigen(1)),static_cast<float>(ep_eigen(2)));
+
+    }
+    glEnd();
+}
+
 void MapDrawer::DrawKeyFrames(const bool bDrawKF, const bool bDrawGraph)
 {
     const float &w = mKeyFrameSize;

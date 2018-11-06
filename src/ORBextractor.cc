@@ -1152,8 +1152,8 @@ void Lineextractor::operator()( const cv::Mat& img, const cv::Mat& mask,
     // Detect line features
     keylines.clear();
     Ptr<BinaryDescriptor>   lbd = BinaryDescriptor::createBinaryDescriptor();
-    // if( Config::hasLines() )
-    // {
+    if( Config::hasLines() )
+    {
 
         if( !bFLD )
         {
@@ -1247,7 +1247,7 @@ void Lineextractor::operator()( const cv::Mat& img, const cv::Mat& mask,
             lbd->compute( fld_img, keylines, descriptors_line);
         }
         */
-    // }    
+    }
 }
 
 } //namespace ORB_SLAM

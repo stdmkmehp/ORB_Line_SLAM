@@ -48,6 +48,7 @@ public:
     void EraseMapLine(MapLine* pML);
     void EraseKeyFrame(KeyFrame* pKF);
     void SetReferenceMapPoints(const std::vector<MapPoint*> &vpMPs);
+    void SetReferenceMapLines(const std::vector<MapLine*> &vpMLs);
     void InformNewBigChange();
     int GetLastBigChangeIdx();
 
@@ -55,6 +56,7 @@ public:
     std::vector<MapPoint*> GetAllMapPoints();
     std::vector<MapLine*> GetAllMapLines();
     std::vector<MapPoint*> GetReferenceMapPoints();
+    std::vector<MapLine*> GetReferenceMapLines();
 
     long unsigned int MapPointsInMap();
     long unsigned int MapLinesInMap();
@@ -70,6 +72,7 @@ public:
 
     // This avoid that two points are created simultaneously in separate threads (id conflict)
     std::mutex mMutexPointCreation;
+    std::mutex mMutexLineCreation;
 
 protected:
     std::set<MapPoint*> mspMapPoints;
@@ -77,6 +80,7 @@ protected:
     std::set<KeyFrame*> mspKeyFrames;
 
     std::vector<MapPoint*> mvpReferenceMapPoints;
+    std::vector<MapLine*> mvpReferenceMapLines;
 
     long unsigned int mnMaxKFid;
 

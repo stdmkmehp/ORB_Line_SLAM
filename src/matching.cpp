@@ -61,6 +61,46 @@ int matchNNR(const cv::Mat &desc1, const cv::Mat &desc2, float nnr, std::vector<
     return matches;
 }
 
+int match(const std::vector<MapLine*> &vpLocalMapLines, Frame &CurrentFrame, float nnr, std::vector<int> &matches_12)
+{
+    cv::Mat desc1;
+    desc1.reserve(vpLocalMapLines.size());
+    for(int i=0,z=vpLocalMapLines.size(); i<z; ++i)
+        desc1.push_back(vpLocalMapLines[i]->GetDescriptor());
+    cv::Mat desc2;
+    CurrentFrame.mDescriptors_Line.copyTo(desc2);
+
+    return matchNNR(desc1, desc2, nnr, matches_12);
+
+
+    int matches;
+    if (Config::bestLRMatches()) {
+        std::vector<int> matches_21;
+        if (Config::lrInParallel()) {
+            auto match_12 = std::async(std::launch::async, &matchNNR,
+                                  std::cref(desc1), std::cref(desc2), nnr, std::ref(matches_12));
+            auto match_21 = std::async(std::launch::async, &matchNNR,
+                                  std::cref(desc2), std::cref(desc1), nnr, std::ref(matches_21));
+            matches = match_12.get();
+            match_21.wait();
+        } else {
+            matches = matchNNR(desc1, desc2, nnr, matches_12);
+            matchNNR(desc2, desc1, nnr, matches_21);
+        }
+
+        for (int i1 = 0; i1 < matches_12.size(); ++i1) {
+            int &i2 = matches_12[i1];
+            if (i2 >= 0 && matches_21[i2] != i1) {
+                i2 = -1;
+                matches--;
+            }
+        }
+    }
+    else matches = matchNNR(desc1, desc2, nnr, matches_12);
+
+    return matches;
+}
+
 int match(const cv::Mat &desc1, const cv::Mat &desc2, float nnr, std::vector<int> &matches_12) {
 
     if (Config::bestLRMatches()) {

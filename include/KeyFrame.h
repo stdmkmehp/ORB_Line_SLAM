@@ -41,8 +41,6 @@ class MapLine;
 class Frame;
 class KeyFrameDatabase;
 
-class LineFeature;
-
 class KeyFrame
 {
 public:
@@ -180,7 +178,12 @@ public:
     const std::vector<float> mvDepth; // negative value for monocular points
     const cv::Mat mDescriptors;
 
+
     // KeyLines
+    const std::vector<cv::line_descriptor::KeyLine> mvKeys_Line;
+    const std::vector<cv::line_descriptor::KeyLine> mvKeysUn_Line;
+    std::vector<pair<float,float>> mvDisparity_l;
+    std::vector<Vector3d> mvle_l;
     const cv::Mat mDescriptors_l;
 
     //BoW

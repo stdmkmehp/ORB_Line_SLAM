@@ -42,7 +42,7 @@ cv::Mat FrameDrawer::DrawFrame()
     vector<int> vMatches; // Initialization: correspondeces with reference keypoints
     vector<cv::KeyPoint> vCurrentKeys; // KeyPoints in current frame
     vector<cv::line_descriptor::KeyLine> vCurrentKeys_Line; // KeyPoints in current frame
-    vector<bool> vbVO, vbMap; // Tracked MapPoints in current frame
+    vector<bool> vbVO, vbMap, vbVO_l, vbMap_l; // Tracked MapPoints in current frame
     int state; // Tracking state
 
     //Copy variables within scoped mutex
@@ -59,19 +59,21 @@ cv::Mat FrameDrawer::DrawFrame()
             vCurrentKeys = mvCurrentKeys;
             vIniKeys = mvIniKeys;
             vMatches = mvIniMatches;
-            vCurrentKeys_Line = mvCurrentKeys_Line;
+            vCurrentKeys_Line = mvCurrentKeys_l;
         }
         else if(mState==Tracking::OK)
         {
             vCurrentKeys = mvCurrentKeys;
             vbVO = mvbVO;
             vbMap = mvbMap;
-            vCurrentKeys_Line = mvCurrentKeys_Line;
+            vCurrentKeys_Line = mvCurrentKeys_l;
+            vbVO_l = mvbVO_l;
+            vbMap_l = mvbMap_l;
         }
         else if(mState==Tracking::LOST)
         {
             vCurrentKeys = mvCurrentKeys;
-            vCurrentKeys_Line = mvCurrentKeys_Line;
+            vCurrentKeys_Line = mvCurrentKeys_l;
         }
     } // destroy scoped mutex -> release mutex
 
@@ -94,6 +96,8 @@ cv::Mat FrameDrawer::DrawFrame()
     {
         mnTracked=0;
         mnTrackedVO=0;
+        mnTracked_l=0;
+        mnTrackedVO_l=0;
         const float r = 5;
         const int n = vCurrentKeys.size();
         for(int i=0;i<n;i++)
@@ -126,15 +130,26 @@ cv::Mat FrameDrawer::DrawFrame()
         const int nl = vCurrentKeys_Line.size();
         for(int i=0; i<nl; ++i)
         {
-            // FIXME :if(vCurrentKeys_Line[i])
-            if(true)//vCurrentKeys_Line[i])
+            // FIXME : lines to draw
+            if(true)
+            // if(vbVO_l[i] || vbMap_l[i])
             {
                 cv::Point2f sp, ep;
                 sp.x = int(vCurrentKeys_Line[i].startPointX);
                 sp.y = int(vCurrentKeys_Line[i].startPointY);
                 ep.x = int(vCurrentKeys_Line[i].endPointX);
                 ep.y = int(vCurrentKeys_Line[i].endPointY);
-                cv::line(im, sp, ep, cv::Scalar(0,0,255), 1.5);
+                if(vbMap_l[i]) {
+                    cv::line(im, sp, ep, cv::Scalar(0,0,255), 1.5);
+                    ++mnTracked_l;
+                }
+                else if(vbVO_l[i]) {
+                    cv::line(im, sp, ep, cv::Scalar(255,255,0), 1.5);
+                    ++mnTrackedVO_l;
+                }
+                else {
+                    cv::line(im, sp, ep, cv::Scalar(255,0,255), 1.5);
+                }
             }
         }
     }
@@ -161,9 +176,13 @@ void FrameDrawer::DrawTextInfo(cv::Mat &im, int nState, cv::Mat &imText)
             s << "LOCALIZATION | ";
         int nKFs = mpMap->KeyFramesInMap();
         int nMPs = mpMap->MapPointsInMap();
-        s << "KFs: " << nKFs << ", MPs: " << nMPs << ", Matches: " << mnTracked;
+        int nMLs = mpMap->MapLinesInMap();
+        s << "KFs: " << nKFs << ", MPs: " << nMPs << ", Matches_p: " << mnTracked;
         if(mnTrackedVO>0)
-            s << ", + VO matches: " << mnTrackedVO;
+            s << ", + VO matches_p: " << mnTrackedVO;
+        s << ", MLs: " << nMLs << ", Matches_l: " << mnTracked_l;
+        if(mnTrackedVO_l>0)
+            s << ", + VO matches_l: " << mnTrackedVO_l;
     }
     else if(nState==Tracking::LOST)
     {
@@ -188,14 +207,21 @@ void FrameDrawer::Update(Tracking *pTracker)
 {
     unique_lock<mutex> lock(mMutex);
     pTracker->mImGray.copyTo(mIm);
+
+    // pooint
     mvCurrentKeys=pTracker->mCurrentFrame.mvKeys;
     N = mvCurrentKeys.size();
     mvbVO = vector<bool>(N,false);
     mvbMap = vector<bool>(N,false);
-    mbOnlyTracking = pTracker->mbOnlyTracking;
 
     // line 
-    mvCurrentKeys_Line = pTracker->mCurrentFrame.mvKeysUn_Line;
+    mvCurrentKeys_l = pTracker->mCurrentFrame.mvKeys_Line;
+    N_l = mvCurrentKeys_l.size();
+    mvbVO_l = vector<bool>(N_l,false);
+    mvbMap_l = vector<bool>(N_l,false);
+
+
+    mbOnlyTracking = pTracker->mbOnlyTracking;
 
     if(pTracker->mLastProcessedState==Tracking::NOT_INITIALIZED)
     {
@@ -215,6 +241,20 @@ void FrameDrawer::Update(Tracking *pTracker)
                         mvbMap[i]=true;
                     else
                         mvbVO[i]=true;
+                }
+            }
+        }
+        for(int i=0;i<N_l;i++)
+        {
+            MapLine* pML = pTracker->mCurrentFrame.mvpMapLines[i];
+            if(pML)
+            {
+                if(!pTracker->mCurrentFrame.mvbOutlier_Line[i])
+                {
+                    if(pML->Observations()>0)
+                        mvbMap_l[i]=true;
+                    else
+                        mvbVO_l[i]=true;
                 }
             }
         }

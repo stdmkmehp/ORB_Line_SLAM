@@ -36,6 +36,9 @@ public:
 
     static Config& getInstance();
 
+    static int&     imgWidth()  { return getInstance().img_width; }
+    static int&     imgHeight()       { return getInstance().img_height; }
+
     // Keyframe selection parameters (for SLAM, if any)
     static double&  minEntropyRatio()   { return getInstance().min_entropy_ratio; }
     static double&  maxKFTDist()        { return getInstance().max_kf_t_dist; }
@@ -140,6 +143,8 @@ public:
     static bool&    hasRefinement()     { return getInstance().has_refinement; }
     static bool&    multithreadSLAM()   { return getInstance().mutithread_slam; }
 
+    int img_width;
+    int img_height;
 
     // SLAM parameters (keyframe selection)
     double min_entropy_ratio;

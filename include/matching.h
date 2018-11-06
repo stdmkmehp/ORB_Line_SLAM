@@ -30,8 +30,14 @@
 #include <opencv2/core.hpp>
 
 #include "gridStructure.h"
+#include "Frame.h"
+#include "MapPoint.h"
 
 namespace ORB_SLAM2 {
+
+class Frame;
+class MapPoint;
+class MapLine;
 
 typedef std::pair<int, int> point_2d;
 typedef std::pair<point_2d, point_2d> line_2d;
@@ -48,6 +54,8 @@ inline void normalize(std::pair<double, double> &v) {
 }
 
 int matchNNR(const cv::Mat &desc1, const cv::Mat &desc2, float nnr, std::vector<int> &matches_12);
+
+int match(const std::vector<MapLine*> &mvpLocalMapLines, Frame &CurrentFrame, float nnr, std::vector<int> &matches_12);
 
 int match(const cv::Mat &desc1, const cv::Mat &desc2, float nnr, std::vector<int> &matches_12);
 

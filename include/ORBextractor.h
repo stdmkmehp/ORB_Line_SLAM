@@ -26,6 +26,7 @@
 #include <opencv/cv.h>
 
 #include "Auxiliar.h"
+#include "config.h"
 
 // #include <opencv2/ximgproc.hpp>
 // #include <opencv2/ximgproc/fast_line_detector.hpp>
