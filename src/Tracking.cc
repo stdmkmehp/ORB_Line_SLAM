@@ -219,7 +219,7 @@ cv::Mat Tracking::GrabImageStereo(const cv::Mat &imRectLeft, const cv::Mat &imRe
     mCurrentFrame = Frame(mImGray,imGrayRight,timestamp,mpORBextractorLeft,mpORBextractorRight,
         mpLineextractorLeft,mpLineextractorRight,mpORBVocabulary,
         mK,mDistCoef,mbf,mThDepth);
-    cout<<"[Debug] mCurrentFrame.mnId "<<mCurrentFrame.mnId<<endl;
+    // cout<<"[Debug] mCurrentFrame.mnId "<<mCurrentFrame.mnId<<endl;
     Track();
 
     return mCurrentFrame.mTcw.clone();
@@ -333,18 +333,14 @@ void Tracking::Track()
                 }
                 else
                 {
-                    // bOK = TrackReferenceKeyFrameWithLine();
-                    // bOK = TrackReferenceKeyFrame();
                     bOK = TrackWithMotionModelWithLine();
-                    // bOK = TrackWithMotionModel();
-                    if(!bOK)
-                        bOK = TrackReferenceKeyFrameWithLine();
-                        // bOK = TrackReferenceKeyFrame();
+                    if(!bOK) bOK = TrackReferenceKeyFrameWithLine();
+                    if(!bOK) bOK = TrackWithMotionModel();
+                    if(!bOK) bOK = TrackReferenceKeyFrame();
                 }
             }
             else
             {
-                cout<<"[Debug] Call Relocalization!!!"<<endl;
                 bOK = Relocalization();
             }
         }
@@ -844,6 +840,8 @@ void Tracking::CheckReplacedInLastFrame()
 
 bool Tracking::TrackReferenceKeyFrame()
 {
+    cout<<"[Debug] Calling TrackReferenceKeyFrame(), mCurrentFrame.mnId:"<<mCurrentFrame.mnId<<endl;
+
     // Compute Bag of Words vector
     mCurrentFrame.ComputeBoW();
 
@@ -888,7 +886,7 @@ bool Tracking::TrackReferenceKeyFrame()
 
 bool Tracking::TrackReferenceKeyFrameWithLine()
 {
-    cout<<"[Debug] Calling TrackReferenceKeyFrameWithLine()"<<endl;
+    cout<<"[Debug] Calling TrackReferenceKeyFrameWithLine(), mCurrentFrame.mnId:"<<mCurrentFrame.mnId<<endl;
 
     // Compute Bag of Words vector
     mCurrentFrame.ComputeBoW();
@@ -922,7 +920,7 @@ bool Tracking::TrackReferenceKeyFrameWithLine()
         if (i2 < 0) continue;
 
         // check for orientation and position in image
-        if(false) {
+        if(true) {
             // check for orientation
             double theta = mCurrentFrame.mvKeysUn_Line[i2].angle-mpReferenceKF->mvKeysUn_Line[i1].angle;
             if(theta<-M_PI) theta+=2*M_PI;
@@ -960,10 +958,10 @@ bool Tracking::TrackReferenceKeyFrameWithLine()
     // cout<<"[Debug] In TrackReferenceKeyFrameWithLine(), n_inliers_pt:"<<mCurrentFrame.n_inliers_pt<<" ,n_inliers_ls:"<<mCurrentFrame.n_inliers_ls<<endl;
     mCurrentFrame.n_inliers = mCurrentFrame.n_inliers_ls + mCurrentFrame.n_inliers_pt;
 
-    Optimizer::PoseOptimization(&mCurrentFrame); cout<<"PoseOptimization without Line"<<endl;
+    // Optimizer::PoseOptimization(&mCurrentFrame); cout<<"PoseOptimization without Line"<<endl;
     if(!Config::hasLines()) mCurrentFrame.mvpMapLines.clear();
     bool bOpL = true;
-    // bOpL = Optimizer::PoseOptimizationWithLine(&mCurrentFrame);
+    bOpL = Optimizer::PoseOptimizationWithLine(&mCurrentFrame);
 
     // Discard outliers
     int nmatchesMap_p = 0;
@@ -1140,6 +1138,8 @@ void Tracking::UpdateLastFrame()
 
 bool Tracking::TrackWithMotionModel()
 {
+    cout<<"[Debug] Calling TrackWithMotionModel(), mCurrentFrame.mnId:"<<mCurrentFrame.mnId<<endl;
+
     ORBmatcher matcher(0.9,true);
 
     // Update last frame pose according to its reference keyframe
@@ -1203,6 +1203,8 @@ bool Tracking::TrackWithMotionModel()
 
 bool Tracking::TrackWithMotionModelWithLine()
 {
+    // cout<<"[Debug] Calling TrackWithMotionModelWithLine()"<<endl;
+
     ORBmatcher matcher(0.9,true);
 
     // Update last frame pose according to its reference keyframe
@@ -1324,7 +1326,6 @@ bool Tracking::TrackWithMotionModelWithLine()
         cv::Mat curIm = mImGray.clone();
         cvtColor(lastIm,lastIm,CV_GRAY2BGR);
         cvtColor(curIm,curIm,CV_GRAY2BGR);
-        const int nl = mLastFrame.mvKeysUn_Line.size();
         random_device rnd_dev;
         mt19937 rnd(rnd_dev());
         uniform_int_distribution<int> color_dist(0, 255);
@@ -1407,7 +1408,7 @@ bool Tracking::TrackWithMotionModelWithLine()
     {
         if(mCurrentFrame.mvpMapPoints[i])
         {
-            if(mCurrentFrame.mvbOutlier[i])
+            if(mCurrentFrame.mvbOutlier[i]&&bOpL)
             {
                 MapPoint* pMP = mCurrentFrame.mvpMapPoints[i];
 
@@ -1428,7 +1429,7 @@ bool Tracking::TrackWithMotionModelWithLine()
     {
         if(mCurrentFrame.mvpMapLines[i])
         {
-            if(mCurrentFrame.mvbOutlier_Line[i])
+            if(mCurrentFrame.mvbOutlier_Line[i]&&bOpL)
             {
                 MapLine* pML = mCurrentFrame.mvpMapLines[i];
 
@@ -1444,8 +1445,12 @@ bool Tracking::TrackWithMotionModelWithLine()
                 nmatchesMap_l++;
         }
     }
-
-    cout<<"[Debug] In TrackWithMotionModelWithLine(), After optimization nmatchesMap_p:"<<nmatchesMap_p<<", nmatchesMap_l:"<<nmatchesMap_l<<endl;
+    if(!bOpL)
+    {
+        fill(mCurrentFrame.mvbOutlier.begin(),mCurrentFrame.mvbOutlier.end(),false);
+        fill(mCurrentFrame.mvbOutlier_Line.begin(),mCurrentFrame.mvbOutlier_Line.end(),false);
+    }
+    // cout<<"[Debug] In TrackWithMotionModelWithLine(), After optimization nmatchesMap_p:"<<nmatchesMap_p<<", nmatchesMap_l:"<<nmatchesMap_l<<endl;
     if(mbOnlyTracking)
     {
         mbVO = nmatchesMap_p<10;
@@ -1470,7 +1475,7 @@ bool Tracking::TrackLocalMap()
     Optimizer::PoseOptimization(&mCurrentFrame);
     // cout<<"After TrackLocalMap optimization, pose is "<<endl<<mCurrentFrame.mTcw<<endl;
     bool bOpL = true;
-    // bOpL = Optimizer::PoseOptimizationWithLine(&mCurrentFrame); cout<<"TrackLocalMap's PoseOptimization with Line"<<endl;
+    // bOpL = Optimizer::PoseOptimizationWithLine(&mCurrentFrame); // cout<<"TrackLocalMap's PoseOptimization with Line"<<endl;
     // cout<<"After TrackLocalMap optimizationWithLine, pose is "<<endl<<mCurrentFrame.mTcw<<endl;
     // mCurrentFrame.SetPose(tmp);
     mnMatchesInliers = 0;
@@ -1519,7 +1524,7 @@ bool Tracking::TrackLocalMap()
         }
     }
 
-    cout<<"[Debug] In TrackLocalMap(), After optimization, mnMatchesInliers:"<<mnMatchesInliers<<", mnMatchesInliers_l:"<<mnMatchesInliers_l<<endl;
+    // cout<<"[Debug] In TrackLocalMap(), After optimization, mnMatchesInliers:"<<mnMatchesInliers<<", mnMatchesInliers_l:"<<mnMatchesInliers_l<<endl;
 
     // Decide if the tracking was succesful
     // More restrictive if there was a relocalization recently
@@ -1537,6 +1542,7 @@ bool Tracking::TrackLocalMap()
 
 bool Tracking::NeedNewKeyFrame()
 {
+    // TODO: add line condition
     if(mbOnlyTracking)
         return false;
 
@@ -1555,6 +1561,7 @@ bool Tracking::NeedNewKeyFrame()
     if(nKFs<=2)
         nMinObs=2;
     int nRefMatches = mpReferenceKF->TrackedMapPoints(nMinObs);
+    int nRefMatches_l = mpReferenceKF->TrackedMapLines(2);
 
     // Local Mapping accept keyframes?
     bool bLocalMappingIdle = mpLocalMapper->AcceptKeyFrames();
@@ -1562,6 +1569,8 @@ bool Tracking::NeedNewKeyFrame()
     // Check how many "close" points are being tracked and how many could be potentially created.
     int nNonTrackedClose = 0;
     int nTrackedClose= 0;
+    int nNonTrackedClose_l = 0;
+    int nTrackedClose_l= 0;
     if(mSensor!=System::MONOCULAR)
     {
         for(int i =0; i<mCurrentFrame.N; i++)
@@ -1574,9 +1583,28 @@ bool Tracking::NeedNewKeyFrame()
                     nNonTrackedClose++;
             }
         }
+        for(int i =0; i<mCurrentFrame.N_l; i++)
+        {
+            float minz = mLastFrame.mbf/mLastFrame.mvDisparity_l[i].first;
+            float maxz = mLastFrame.mbf/mLastFrame.mvDisparity_l[i].second;
+            if(minz>maxz)
+            {
+                float tmp=minz;
+                minz=maxz;
+                maxz=tmp;
+            }
+            if(minz>0 && maxz<mThDepth)
+            {
+                if(mCurrentFrame.mvpMapLines[i] && !mCurrentFrame.mvbOutlier_Line[i])
+                    ++nTrackedClose_l;
+                else
+                    ++nNonTrackedClose_l;
+            }
+        }
     }
 
     bool bNeedToInsertClose = (nTrackedClose<100) && (nNonTrackedClose>70);
+    bool bNeedToInsertClose_l = (nTrackedClose_l<15) && (nNonTrackedClose_l>50);
 
     // Thresholds
     float thRefRatio = 0.75f;
@@ -1585,17 +1613,26 @@ bool Tracking::NeedNewKeyFrame()
 
     if(mSensor==System::MONOCULAR)
         thRefRatio = 0.9f;
+    float thRefRatio_l = thRefRatio;
 
     // Condition 1a: More than "MaxFrames" have passed from last keyframe insertion
     const bool c1a = mCurrentFrame.mnId>=mnLastKeyFrameId+mMaxFrames;
     // Condition 1b: More than "MinFrames" have passed and Local Mapping is idle
     const bool c1b = (mCurrentFrame.mnId>=mnLastKeyFrameId+mMinFrames && bLocalMappingIdle);
     //Condition 1c: tracking is weak
-    const bool c1c =  mSensor!=System::MONOCULAR && (mnMatchesInliers<nRefMatches*0.25 || bNeedToInsertClose) ;
+    const bool c1c =  mSensor!=System::MONOCULAR && (mnMatchesInliers<nRefMatches*0.25 || bNeedToInsertClose);
+    const bool c1c_l =  mSensor!=System::MONOCULAR && (mnMatchesInliers_l<nRefMatches_l*0.25 || bNeedToInsertClose_l);
     // Condition 2: Few tracked points compared to reference keyframe. Lots of visual odometry compared to map matches.
     const bool c2 = ((mnMatchesInliers<nRefMatches*thRefRatio|| bNeedToInsertClose) && mnMatchesInliers>15);
+    const bool c2_l = ((mnMatchesInliers_l<nRefMatches_l*thRefRatio_l|| bNeedToInsertClose_l) && mnMatchesInliers_l>10);
 
-    if((c1a||c1b||c1c)&&c2)
+//    if(c1c_l || c2_l) {
+//        cout<<"[Debug] Insert new KeyFrame based on lines.\t";
+//        cout<<mnMatchesInliers_l<<" "<<nRefMatches_l<<" "<<bNeedToInsertClose_l<<endl;
+//    }
+
+//    if((c1a||c1b||c1c)&&c2)
+    if((c1a||c1b||c1c||c1c_l)&&(c2||c2_l))
     {
         // If the mapping accepts keyframes, insert keyframe.
         // Otherwise send a signal to interrupt BA
@@ -1629,7 +1666,7 @@ void Tracking::CreateNewKeyFrame()
 
     KeyFrame* pKF = new KeyFrame(mCurrentFrame,mpMap,mpKeyFrameDB);
 
-    cout<<"[Debug] Create New KeyFrame "<<pKF->mnId<<endl;
+//    cout<<"[Debug] Create New KeyFrame "<<pKF->mnId<<endl;
 
     mpReferenceKF = pKF;
     mCurrentFrame.mpReferenceKF = pKF;
@@ -1857,7 +1894,7 @@ void Tracking::SearchLocalPointsAndLines()
         {
             pML->IncreaseVisible();
             nToMatch++;
-            mvpLocalMapLines_InFrustum.push_back(pML);          // FIXME
+            mvpLocalMapLines_InFrustum.push_back(pML);          // FIXME: fix what?
         }
     }
 
@@ -1872,7 +1909,7 @@ void Tracking::SearchLocalPointsAndLines()
     // const double deltaAngle = M_PI/50.0;
     const double deltaWidth = Config::imgWidth()*0.3;
     const double deltaHeight = Config::imgHeight()*0.3;
-    for (int i1 = 0; i1 < matches_12.size(); ++i1) {                // remove maplines that do not match with orientation and position in image
+    for (int i1 = 0, nmatches_12 = matches_12.size(); i1 < nmatches_12; ++i1) {                // remove maplines that do not match with orientation and position in image
         int i2 = matches_12[i1];
         if (i2 < 0) continue;
 
@@ -2093,7 +2130,10 @@ void Tracking::UpdateLocalKeyFrames()
 
 bool Tracking::Relocalization()
 {
+    // TODO: Add RelocalizationWithLine()
+
     cout<<"[Debug] calling Relocalization."<<endl;
+
     // Compute Bag of Words Vector
     mCurrentFrame.ComputeBoW();
 

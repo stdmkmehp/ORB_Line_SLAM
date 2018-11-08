@@ -455,7 +455,6 @@ MapLine::MapLine(const Eigen::Vector3d &sP, const Eigen::Vector3d &eP,  Map* pMa
     // mfMaxDistance = dist*levelScaleFactor;
     // mfMinDistance = mfMaxDistance/pFrame->mvScaleFactors[nLevels-1];
 
-    //TODO : check if reasonable
     pFrame->mDescriptors_Line.row(idxF).copyTo(mDescriptor);
 
     // MapPoints can be created from Tracking and Local Mapping. This mutex avoid conflicts with id.
@@ -708,7 +707,7 @@ cv::Mat MapLine::GetDescriptor()
 
 void MapLine::UpdateNormalAndDepth()
 {
-    // TODO
+    // TODO: MapLine::UpdateNormalAndDepth()
 
     // map<KeyFrame*,size_t> observations;
     // KeyFrame* pRefKF;

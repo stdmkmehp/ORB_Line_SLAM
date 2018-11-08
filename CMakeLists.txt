@@ -5,16 +5,15 @@ IF(NOT CMAKE_BUILD_TYPE)
   SET(CMAKE_BUILD_TYPE Release)
 ENDIF()
 
-#SET(CMAKE_BUILD_TYPE Debug)
-#MESSAGE("Build type: " ${CMAKE_BUILD_TYPE})
+#set(CMAKE_BUILD_TYPE Debug)
+#message("Build type: " ${CMAKE_BUILD_TYPE})
+#set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -std=c++11 -g -O0")
+#set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -g -O0")
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0")
+#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0")
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall  -O3 -march=native ")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall   -O3 -march=native")
-
-#set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -std=c++11 -g -O0")
-#set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -g -O0")
-#SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0")
-#SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0")
 
 # Check C++11 or C++0x support
 include(CheckCXXCompilerFlag)

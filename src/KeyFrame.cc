@@ -319,7 +319,7 @@ set<MapLine*> KeyFrame::GetMapLines()
 {
     unique_lock<mutex> lock(mMutexFeatures);
     set<MapLine*> s;
-    for(size_t i=0, iend=mvpMapLines.size(); i<iend; i++)
+    for(size_t i=0, iend=N_l; i<iend; i++)
     {
         if(!mvpMapLines[i])
             continue;
@@ -336,7 +336,7 @@ int KeyFrame::TrackedMapLines(const int &minObs)
 
     int nLines=0;
     const bool bCheckObs = minObs>0;
-    for(int i=0; i<N; i++)
+    for(int i=0; i<N_l; i++)
     {
         MapLine* pML = mvpMapLines[i];
         if(pML)

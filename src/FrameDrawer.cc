@@ -177,7 +177,7 @@ void FrameDrawer::DrawTextInfo(cv::Mat &im, int nState, cv::Mat &imText)
         int nKFs = mpMap->KeyFramesInMap();
         int nMPs = mpMap->MapPointsInMap();
         int nMLs = mpMap->MapLinesInMap();
-        s << "KFs: " << nKFs << ", MPs: " << nMPs << ", Matches_p: " << mnTracked;
+        s << "Frame:" << mnId << ", KFs: " << nKFs << ", MPs: " << nMPs << ", Matches_p: " << mnTracked;
         if(mnTrackedVO>0)
             s << ", + VO matches_p: " << mnTrackedVO;
         s << ", MLs: " << nMLs << ", Matches_l: " << mnTracked_l;
@@ -207,6 +207,7 @@ void FrameDrawer::Update(Tracking *pTracker)
 {
     unique_lock<mutex> lock(mMutex);
     pTracker->mImGray.copyTo(mIm);
+    mnId = pTracker->mCurrentFrame.mnId;
 
     // pooint
     mvCurrentKeys=pTracker->mCurrentFrame.mvKeys;

@@ -54,6 +54,7 @@ protected:
 
     // Info of the frame to be drawn
     cv::Mat mIm;
+    long unsigned int mnId;
     int N, N_l;
     vector<cv::KeyPoint> mvCurrentKeys;
     vector<cv::line_descriptor::KeyLine> mvCurrentKeys_l;

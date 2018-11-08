@@ -497,7 +497,7 @@ bool Frame::isInFrustum_l(MapLine *pML, float viewingCosLimit)
         pML->mTrackProjeY = v;
     }
 
-    // TODO
+    // TODO: check distance+viewing angle, predict scale
     // Check distance is in the scale invariance region of the MapPoint
     // Check viewing angle
     // Predict scale in the image
