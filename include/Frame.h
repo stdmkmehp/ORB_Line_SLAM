@@ -32,7 +32,7 @@
 
 #include <opencv2/opencv.hpp>
 
-#include <stereoFeatures.h>
+// #include <stereoFeatures.h>
 
 #include "config.h"
 #include "matching.h"
@@ -89,7 +89,7 @@ public:
 
     // Set the camera pose.
     void SetPose(cv::Mat Tcw);
-
+    void SetprevInformation(cv::Mat _Tcw, Matrix6d _DT_cov, Vector6d _DT_cov_eig, double _err_norm);
     // Computes rotation, translation and camera center matrices from the camera pose.
     void UpdatePoseMatrices();
 
@@ -106,6 +106,7 @@ public:
     // Check if a MapPoint is in the frustum of the camera
     // and fill variables of the MapPoint to be used by the tracking
     bool isInFrustum(MapPoint* pMP, float viewingCosLimit);
+    bool isInFrustum_l(MapLine *pML, float viewingCosLimit);
 
     // Compute the cell of a keypoint (return false if outside the grid)
     bool PosInGrid(const cv::KeyPoint &kp, int &posX, int &posY);
@@ -190,15 +191,14 @@ public:
     cv::Mat mDescriptors_Line, mDescriptorsRight_Line;
 
     // for PLslam
-    // TODO (DONE) : use mvKeys_Line instead of stereo_ls
     // std::vector<LineFeature*> stereo_ls;
     std::vector<pair<float,float>> mvDisparity_l;
     std::vector<Vector3d> mvle_l;
     std::vector<MapLine*> mvpMapLines;
+    std::vector<bool> mvbOutlier_Line;
 
     // MapPoints associated to keypoints, NULL pointer if no association.
     std::vector<MapPoint*> mvpMapPoints;
-    std::vector<bool> mvbOutlier_Line;
 
     // Flag to identify outlier associations.
     std::vector<bool> mvbOutlier;
@@ -210,6 +210,7 @@ public:
 
     // Camera pose.
     cv::Mat mTcw;
+    cv::Mat mTcw_prev;
 
     // Current and Next Frame id.
     static long unsigned int nNextId;

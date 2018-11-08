@@ -123,7 +123,7 @@ LineFeature::LineFeature( Vector2d spl_, double sdisp_, Vector3d sP_, Vector2d s
     epl(epl_), edisp(edisp_), eP(eP_), epl_obs(epl_obs_), edisp_obs(edisp_obs_),
     le(le_), le_obs(le_obs_), angle(angle_), idx(idx_), level(level_), inlier(inlier_), sigma2(sigma2_), covE_an(covE_an_), covS_an(covS_an_)
 {
-    // FIXME(done) sigma2入参初始化之后不应再根据level重新计算
+    // FIXME(done) sigma2 入参初始化之后不应再根据level重新计算
     // for( int i = 0; i < level; i++ )
     //     sigma2 *= Config::lsdScale();
     // sigma2 = 1.f / (sigma2*sigma2);

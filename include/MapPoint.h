@@ -93,11 +93,11 @@ public:
     float mTrackProjX;
     float mTrackProjY;
     float mTrackProjXR;
-    bool mbTrackInView;
+    bool mbTrackInView;         // check isInFrustum
     int mnTrackScaleLevel;
     float mTrackViewCos;
-    long unsigned int mnTrackReferenceForFrame;
-    long unsigned int mnLastFrameSeen;
+    long unsigned int mnTrackReferenceForFrame;         // When UpdateLocalKeyFrames(), ensure no redundant frames added in mvplocalframe
+    long unsigned int mnLastFrameSeen;                  // escape mappoints seen when checking isInFrustum
 
     // Variables used by local mapping
     long unsigned int mnBALocalForKF;
@@ -199,7 +199,15 @@ public:
      Eigen::Vector3d mWorldPos_sP;
      Eigen::Vector3d mWorldPos_eP;
 
-     double sigma2;
+     // Tracking
+     bool mbTrackInView;
+     float mTrackProjsX;
+     float mTrackProjsY;
+     float mTrackProjeX;
+     float mTrackProjeY;
+     double mnTrackangle;
+     long unsigned int mnTrackReferenceForFrame;
+     long unsigned int mnLastFrameSeen;
 
 protected:    
 

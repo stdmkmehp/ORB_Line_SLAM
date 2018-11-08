@@ -34,8 +34,9 @@ KeyFrame::KeyFrame(Frame &F, Map *pMap, KeyFrameDatabase *pKFDB):
     mnTrackReferenceForFrame(0), mnFuseTargetForKF(0), mnBALocalForKF(0), mnBAFixedForKF(0),
     mnLoopQuery(0), mnLoopWords(0), mnRelocQuery(0), mnRelocWords(0), mnBAGlobalForKF(0),
     fx(F.fx), fy(F.fy), cx(F.cx), cy(F.cy), invfx(F.invfx), invfy(F.invfy),
-    mbf(F.mbf), mb(F.mb), mThDepth(F.mThDepth), N(F.N), N_l(F.mvKeysUn_Line.size()), mvKeys(F.mvKeys), mvKeysUn(F.mvKeysUn),
+    mbf(F.mbf), mb(F.mb), mThDepth(F.mThDepth), N(F.N), N_l(F.N_l), mvKeys(F.mvKeys), mvKeysUn(F.mvKeysUn),
     mvuRight(F.mvuRight), mvDepth(F.mvDepth), mDescriptors(F.mDescriptors.clone()),
+    mvKeys_Line(F.mvKeys_Line),mvKeysUn_Line(F.mvKeysUn_Line),mvDisparity_l(F.mvDisparity_l),mvle_l(F.mvle_l),
     mDescriptors_l(F.mDescriptors_Line.clone()),
     mBowVec(F.mBowVec), mFeatVec(F.mFeatVec), mnScaleLevels(F.mnScaleLevels), mfScaleFactor(F.mfScaleFactor),
     mfLogScaleFactor(F.mfLogScaleFactor), mvScaleFactors(F.mvScaleFactors), mvLevelSigma2(F.mvLevelSigma2),
@@ -318,7 +319,7 @@ set<MapLine*> KeyFrame::GetMapLines()
 {
     unique_lock<mutex> lock(mMutexFeatures);
     set<MapLine*> s;
-    for(size_t i=0, iend=mvpMapLines.size(); i<iend; i++)
+    for(size_t i=0, iend=N_l; i<iend; i++)
     {
         if(!mvpMapLines[i])
             continue;
@@ -335,7 +336,7 @@ int KeyFrame::TrackedMapLines(const int &minObs)
 
     int nLines=0;
     const bool bCheckObs = minObs>0;
-    for(int i=0; i<N; i++)
+    for(int i=0; i<N_l; i++)
     {
         MapLine* pML = mvpMapLines[i];
         if(pML)
@@ -373,10 +374,12 @@ void KeyFrame::UpdateConnections()
     map<KeyFrame*,int> KFcounter;
 
     vector<MapPoint*> vpMP;
+    vector<MapLine*> vpML;
 
     {
         unique_lock<mutex> lockMPs(mMutexFeatures);
         vpMP = mvpMapPoints;
+        vpML = mvpMapLines;
     }
 
     //For all map points in keyframe check in which other keyframes are they seen
@@ -398,6 +401,25 @@ void KeyFrame::UpdateConnections()
             if(mit->first->mnId==mnId)
                 continue;
             KFcounter[mit->first]++;
+        }
+    }
+    for(vector<MapLine*>::iterator vit=vpML.begin(), vend=vpML.end(); vit!=vend; vit++)
+    {
+        MapLine* pML = *vit;
+
+        if(!pML)
+            continue;
+
+        if(pML->isBad())
+            continue;
+
+        map<KeyFrame*,size_t> observations = pML->GetObservations();
+
+        for(map<KeyFrame*,size_t>::iterator mit=observations.begin(), mend=observations.end(); mit!=mend; mit++)
+        {
+            if(mit->first->mnId==mnId)
+                continue;
+            ;// KFcounter[mit->first]++;
         }
     }
 

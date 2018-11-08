@@ -40,22 +40,29 @@ Frame::Frame(const Frame &frame)
     :mpORBvocabulary(frame.mpORBvocabulary), mpORBextractorLeft(frame.mpORBextractorLeft), mpORBextractorRight(frame.mpORBextractorRight),
      mpLineextractorLeft(frame.mpLineextractorLeft), mpLineextractorRight(frame.mpLineextractorRight),
      mTimeStamp(frame.mTimeStamp), mK(frame.mK.clone()), mDistCoef(frame.mDistCoef.clone()),
-     mbf(frame.mbf), mb(frame.mb), mThDepth(frame.mThDepth), N(frame.N), N_l(frame.N_l), mvKeys(frame.mvKeys),
-     mvKeysRight(frame.mvKeysRight), mvKeysUn(frame.mvKeysUn),  mvuRight(frame.mvuRight),
-     mvDepth(frame.mvDepth), mBowVec(frame.mBowVec), mFeatVec(frame.mFeatVec),
+     mbf(frame.mbf), mb(frame.mb), mThDepth(frame.mThDepth), N(frame.N), N_l(frame.N_l),
+     mvKeys(frame.mvKeys), mvKeysRight(frame.mvKeysRight), mvKeysUn(frame.mvKeysUn),
+     mvKeys_Line(frame.mvKeys_Line), mvKeysRight_Line(frame.mvKeysRight_Line), mvKeysUn_Line(frame.mvKeysUn_Line),
+     mvuRight(frame.mvuRight), mvDepth(frame.mvDepth), mBowVec(frame.mBowVec), mFeatVec(frame.mFeatVec),
      mDescriptors(frame.mDescriptors.clone()), mDescriptorsRight(frame.mDescriptorsRight.clone()),
+     mDescriptors_Line(frame.mDescriptors_Line.clone()), mDescriptorsRight_Line(frame.mDescriptorsRight_Line.clone()),
+     mvDisparity_l(frame.mvDisparity_l), mvle_l(frame.mvle_l), mvpMapLines(frame.mvpMapLines), mvbOutlier_Line(frame.mvbOutlier_Line),
      mvpMapPoints(frame.mvpMapPoints), mvbOutlier(frame.mvbOutlier), mnId(frame.mnId),
      mpReferenceKF(frame.mpReferenceKF), mnScaleLevels(frame.mnScaleLevels),
      mfScaleFactor(frame.mfScaleFactor), mfLogScaleFactor(frame.mfLogScaleFactor),
      mvScaleFactors(frame.mvScaleFactors), mvInvScaleFactors(frame.mvInvScaleFactors),
-     mvLevelSigma2(frame.mvLevelSigma2), mvInvLevelSigma2(frame.mvInvLevelSigma2), inv_width(frame.inv_width), inv_height(frame.inv_width)
+     mvLevelSigma2(frame.mvLevelSigma2), mvInvLevelSigma2(frame.mvInvLevelSigma2), inv_width(frame.inv_width), inv_height(frame.inv_width),
+     DT_cov(frame.DT_cov), DT_cov_eig(frame.DT_cov_eig), err_norm(frame.err_norm),
+     n_inliers(n_inliers), n_inliers_pt(frame.n_inliers_pt), n_inliers_ls(frame.n_inliers_ls)
 {
     for(int i=0;i<FRAME_GRID_COLS;i++)
         for(int j=0; j<FRAME_GRID_ROWS; j++)
             mGrid[i][j]=frame.mGrid[i][j];
 
-    if(!frame.mTcw.empty())
+    if(!frame.mTcw.empty()) {
         SetPose(frame.mTcw);
+        mTcw_prev = frame.mTcw_prev.clone();
+    }
 }
 
 Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeStamp, 
@@ -128,7 +135,9 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
     ORBextractor* extractorLeft, ORBextractor* extractorRight, 
     Lineextractor* LineextractorLeft, Lineextractor* LineextractorRight,
     ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth)
-    :mpORBvocabulary(voc),mpORBextractorLeft(extractorLeft),mpORBextractorRight(extractorRight),mpLineextractorLeft(LineextractorLeft),mpLineextractorRight(LineextractorRight), mTimeStamp(timeStamp), mK(K.clone()),mDistCoef(distCoef.clone()), mbf(bf), mThDepth(thDepth),
+    :mpORBvocabulary(voc),mpORBextractorLeft(extractorLeft),mpORBextractorRight(extractorRight),
+     mpLineextractorLeft(LineextractorLeft),mpLineextractorRight(LineextractorRight),
+     mTimeStamp(timeStamp), mK(K.clone()),mDistCoef(distCoef.clone()), mbf(bf), mThDepth(thDepth),
      mpReferenceKF(static_cast<KeyFrame*>(NULL))
 {
     if (imLeft.size != imRight.size)
@@ -186,12 +195,16 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
     mb = mbf/fx;
 
     UndistortKeyPoints();
-    UndistortKeyLines();
+    //UndistortKeyLines();
 
     ComputeStereoMatches();
-    ComputeStereoMatches_Lines();
+    if(Config::hasLines())
+    {
+        ComputeStereoMatches_Lines();           //use mvKeys_Line
 
-    N_l = mvKeys_Line.size();   // update N_l
+        N_l = mvKeys_Line.size();   // update N_l
+        UndistortKeyLines();        //set mvKeysUn_Line
+    }
 
     mvpMapPoints = vector<MapPoint*>(N,static_cast<MapPoint*>(NULL));    
     mvpMapLines = vector<MapLine*>(N_l,static_cast<MapLine*>(NULL));
@@ -359,6 +372,14 @@ void Frame::UpdatePoseMatrices()
     mOw = -mRcw.t()*mtcw;
 }
 
+void Frame::SetprevInformation(cv::Mat _Tcw, Matrix6d _DT_cov, Vector6d _DT_cov_eig, double _err_norm)
+{
+    mTcw_prev = _Tcw.clone();
+    DT_cov = _DT_cov;
+    DT_cov_eig = _DT_cov_eig;
+    err_norm = _err_norm;
+}
+
 bool Frame::isInFrustum(MapPoint *pMP, float viewingCosLimit)
 {
     pMP->mbTrackInView = false;
@@ -413,6 +434,77 @@ bool Frame::isInFrustum(MapPoint *pMP, float viewingCosLimit)
     pMP->mTrackProjY = v;
     pMP->mnTrackScaleLevel= nPredictedLevel;
     pMP->mTrackViewCos = viewCos;
+
+    return true;
+}
+
+bool Frame::isInFrustum_l(MapLine *pML, float viewingCosLimit)
+{
+    pML->mbTrackInView = false;
+
+    // 3D in absolute coordinates
+    Vector6d sep = pML->GetWorldPos();
+    Vector3d sp_eigen = sep.head(3);
+    Vector3d ep_eigen = sep.tail(3);
+    cv::Mat sp = Converter::toCvMat(sp_eigen);
+    cv::Mat ep = Converter::toCvMat(ep_eigen);
+    {
+        // 3D in camera coordinates
+        const cv::Mat Pc = mRcw*sp+mtcw;
+        const float &PcX = Pc.at<float>(0);
+        const float &PcY= Pc.at<float>(1);
+        const float &PcZ = Pc.at<float>(2);
+
+        // Check positive depth
+        if(PcZ<0.0f)
+            return false;
+
+        // Project in image and check it is not outside
+        const float invz = 1.0f/PcZ;
+        const float u=fx*PcX*invz+cx;
+        const float v=fy*PcY*invz+cy;
+
+        if(u<mnMinX || u>mnMaxX)
+            return false;
+        if(v<mnMinY || v>mnMaxY)
+            return false;
+
+        pML->mTrackProjsX = u;
+        pML->mTrackProjsY = v;
+    }
+    {
+        // 3D in camera coordinates
+        const cv::Mat Pc = mRcw*ep+mtcw;
+        const float &PcX = Pc.at<float>(0);
+        const float &PcY= Pc.at<float>(1);
+        const float &PcZ = Pc.at<float>(2);
+
+        // Check positive depth
+        if(PcZ<0.0f)
+            return false;
+
+        // Project in image and check it is not outside
+        const float invz = 1.0f/PcZ;
+        const float u=fx*PcX*invz+cx;
+        const float v=fy*PcY*invz+cy;
+
+        if(u<mnMinX || u>mnMaxX)
+            return false;
+        if(v<mnMinY || v>mnMaxY)
+            return false;
+
+        pML->mTrackProjeX = u;
+        pML->mTrackProjeY = v;
+    }
+
+    // TODO: check distance+viewing angle, predict scale
+    // Check distance is in the scale invariance region of the MapPoint
+    // Check viewing angle
+    // Predict scale in the image
+
+    // Data used by the tracking
+    pML->mbTrackInView = true;
+    pML->mnTrackangle = atan2(pML->mTrackProjeY - pML->mTrackProjsY, pML->mTrackProjeX - pML->mTrackProjsX);
 
     return true;
 }
@@ -528,8 +620,41 @@ void Frame::UndistortKeyPoints()
 
 void Frame::UndistortKeyLines()
 {
-    // TODO
-    mvKeysUn_Line = mvKeys_Line;
+    if(mDistCoef.at<float>(0)==0.0)
+    {
+        mvKeysUn_Line = mvKeys_Line;
+        return;
+    }
+
+    // Fill matrix with points
+    cv::Mat mat_s(N_l,2,CV_32F);
+    cv::Mat mat_e(N_l,2,CV_32F);
+    for(int i=0; i<N_l; i++)
+    {
+        mat_s.at<float>(i,0)=mvKeys_Line[i].startPointX;
+        mat_s.at<float>(i,1)=mvKeys_Line[i].startPointY;
+        mat_e.at<float>(i,0)=mvKeys_Line[i].endPointX;
+        mat_e.at<float>(i,1)=mvKeys_Line[i].endPointY;
+    }
+
+    // Undistort points
+    mat_s=mat_s.reshape(2);
+    mat_e=mat_e.reshape(2);
+    cv::undistortPoints(mat_s,mat_s,mK,mDistCoef,cv::Mat(),mK);
+    cv::undistortPoints(mat_e,mat_e,mK,mDistCoef,cv::Mat(),mK);
+    mat_s=mat_s.reshape(1);
+    mat_e=mat_e.reshape(1);
+
+    // Fill undistorted keypoint vector
+    mvKeysUn_Line.resize(N_l);
+    for(int i=0; i<N_l; i++)
+    {
+        mvKeysUn_Line[i].startPointX=mat_s.at<float>(i,0);
+        mvKeysUn_Line[i].startPointY=mat_s.at<float>(i,1);
+        mvKeysUn_Line[i].endPointX=mat_e.at<float>(i,0);
+        mvKeysUn_Line[i].endPointY=mat_e.at<float>(i,1);
+    }
+
 }
 
 void Frame::ComputeImageBounds(const cv::Mat &imLeft)
@@ -741,21 +866,21 @@ void Frame::ComputeStereoMatches()
 void Frame::ComputeStereoMatches_Lines(bool initial)
 {
     std::vector<cv::line_descriptor::KeyLine> mvKeys_Line_tmp;
-    mvKeys_Line_tmp.reserve(mvKeysUn_Line.size());
+    mvKeys_Line_tmp.reserve(mvKeys_Line.size());
     mvDisparity_l.clear();
-    mvDisparity_l.reserve(mvKeysUn_Line.size());
+    mvDisparity_l.reserve(mvKeys_Line.size());
     mvle_l.clear();
-    mvle_l.reserve(mvKeysUn_Line.size());
+    mvle_l.reserve(mvKeys_Line.size());
 
 
     // Line segments stereo matching
     // --------------------------------------------------------------------------------------------------------------------
-    if (mvKeysUn_Line.empty() || mvKeysRight_Line.empty())
+    if (mvKeys_Line.empty() || mvKeysRight_Line.empty())
         return;
 
     std::vector<line_2d> coords;
-    coords.reserve(mvKeysUn_Line.size());
-    for (const KeyLine &kl : mvKeysUn_Line)
+    coords.reserve(mvKeys_Line.size());
+    for (const KeyLine &kl : mvKeys_Line)
         coords.push_back(std::make_pair(std::make_pair(kl.startPointX * inv_width, kl.startPointY * inv_height),
                                         std::make_pair(kl.endPointX * inv_width, kl.endPointY * inv_height)));
 
@@ -792,8 +917,8 @@ void Frame::ComputeStereoMatches_Lines(bool initial)
         if (i2 < 0) continue;
 
         // estimate the disparity of the endpoints
-        Vector3d sp_l; sp_l << mvKeysUn_Line[i1].startPointX, mvKeysUn_Line[i1].startPointY, 1.0;
-        Vector3d ep_l; ep_l << mvKeysUn_Line[i1].endPointX,   mvKeysUn_Line[i1].endPointY,   1.0;
+        Vector3d sp_l; sp_l << mvKeys_Line[i1].startPointX, mvKeys_Line[i1].startPointY, 1.0;
+        Vector3d ep_l; ep_l << mvKeys_Line[i1].endPointX,   mvKeys_Line[i1].endPointY,   1.0;
         Vector3d le_l; le_l << sp_l.cross(ep_l); le_l = le_l / std::sqrt( le_l(0)*le_l(0) + le_l(1)*le_l(1) );
         Vector3d sp_r; sp_r << mvKeysRight_Line[i2].startPointX, mvKeysRight_Line[i2].startPointY, 1.0;
         Vector3d ep_r; ep_r << mvKeysRight_Line[i2].endPointX,   mvKeysRight_Line[i2].endPointY,   1.0;
@@ -812,21 +937,21 @@ void Frame::ComputeStereoMatches_Lines(bool initial)
             && std::abs( sp_r(1)-ep_r(1) ) > Config::lineHorizTh()
             && overlap > Config::stereoOverlapTh() )
         {
-            mvKeys_Line_tmp.push_back(mvKeysUn_Line[i1]);
+            mvKeys_Line_tmp.push_back(mvKeys_Line[i1]);
             mvDisparity_l.push_back(make_pair(disp_s,disp_e));
             mvle_l.push_back(le_l);
             mDescriptors_Line_aux.push_back( mDescriptors_Line.row(i1) );
-            // use mvKeysUn_Line+mvDisparity_l+mvle_l instead of stereo_ls
+            // use mvKeys_Line+mvDisparity_l+mvle_l instead of stereo_ls
             /*
             Vector3d sP_; //sP_ = backProjection( sp_l(0), sp_l(1), disp_s);
             Vector3d eP_; //eP_ = backProjection( ep_l(0), ep_l(1), disp_e);
-            double angle_l = mvKeysUn_Line[i1].angle;
+            double angle_l = mvKeys_Line[i1].angle;
             if( initial )
             {
                 mDescriptors_Line_aux.push_back( mDescriptors_Line.row(i1) );
                 stereo_ls.push_back( new LineFeature(Vector2d(sp_l(0),sp_l(1)),disp_s,sP_,
                                                      Vector2d(ep_l(0),ep_l(1)),disp_e,eP_,
-                                                     le_l,angle_l,ls_idx,mvKeysUn_Line[i1].octave) );
+                                                     le_l,angle_l,ls_idx,mvKeys_Line[i1].octave) );
                 ls_idx++;
             }
             else
@@ -834,12 +959,12 @@ void Frame::ComputeStereoMatches_Lines(bool initial)
                 mDescriptors_Line_aux.push_back( mDescriptors_Line.row(i1) );
                 stereo_ls.push_back( new LineFeature(Vector2d(sp_l(0),sp_l(1)),disp_s,sP_,
                                                      Vector2d(ep_l(0),ep_l(1)),disp_e,eP_,
-                                                     le_l,angle_l,-1,mvKeysUn_Line[i1].octave) );
+                                                     le_l,angle_l,-1,mvKeys_Line[i1].octave) );
             }
             */
         }
     }
-    mvKeysUn_Line.swap(mvKeys_Line_tmp);
+    mvKeys_Line.swap(mvKeys_Line_tmp);
     mDescriptors_Line_aux.copyTo(mDescriptors_Line);
 }
 
@@ -932,7 +1057,8 @@ cv::Mat Frame::UnprojectStereo(const int &i)
 
 Eigen::Vector3d Frame::backProjection( const double &u, const double &v, const double &disp )
 {
-    Eigen::Vector3d P;
+    // convert the point in image to the point in world coordinate.
+    Eigen::Vector3d P;      // point in camera coordinate
     double bd = mb/disp;
     P(0) = bd*(u-cx);
     P(1) = bd*(v-cy);
@@ -941,6 +1067,7 @@ Eigen::Vector3d Frame::backProjection( const double &u, const double &v, const d
 }
 Eigen::Vector2d Frame::projection(const Eigen::Vector3d &P )
 {
+    // convert the 3Dpoint in camera coordinate to the point in image.
     Vector2d uv_unit;
     uv_unit(0) = cx + fx * P(0) / P(2);
     uv_unit(1) = cy + fy * P(1) / P(2);

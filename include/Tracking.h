@@ -97,6 +97,7 @@ public:
     // Current Frame
     Frame mCurrentFrame;
     cv::Mat mImGray;
+    cv::Mat mImGray_last;
 
     // Initialization Variables (Monocular)
     std::vector<int> mvIniLastMatches;
@@ -131,21 +132,22 @@ protected:
 
     void CheckReplacedInLastFrame();
     bool TrackReferenceKeyFrame();
-
     // Track with line
     bool TrackReferenceKeyFrameWithLine();
     
     void UpdateLastFrame();
     bool TrackWithMotionModel();
+    // Track with line
+    bool TrackWithMotionModelWithLine();
 
     bool Relocalization();
 
     void UpdateLocalMap();
-    void UpdateLocalPoints();
+    void UpdateLocalPointsAndLines();
     void UpdateLocalKeyFrames();
 
     bool TrackLocalMap();
-    void SearchLocalPoints();
+    void SearchLocalPointsAndLines();
 
     bool NeedNewKeyFrame();
     void CreateNewKeyFrame();
@@ -179,6 +181,7 @@ protected:
     KeyFrame* mpReferenceKF;
     std::vector<KeyFrame*> mvpLocalKeyFrames;
     std::vector<MapPoint*> mvpLocalMapPoints;
+    std::vector<MapLine*> mvpLocalMapLines;
     
     // System
     System* mpSystem;
@@ -210,6 +213,7 @@ protected:
 
     //Current matches in frame
     int mnMatchesInliers;
+    int mnMatchesInliers_l;
 
     //Last Frame, KeyFrame and Relocalisation Info
     KeyFrame* mpLastKeyFrame;
@@ -224,6 +228,7 @@ protected:
     bool mbRGB;
 
     list<MapPoint*> mlpTemporalPoints;
+    list<MapLine*> mlpTemporalLines;
 };
 
 } //namespace ORB_SLAM

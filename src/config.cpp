@@ -26,6 +26,8 @@ using namespace std;
 
 Config::Config()
 {
+    img_width = 0;
+    img_height = 0;
 
     // kf decision (SLAM) parameters
     min_entropy_ratio     = 0.85;
@@ -166,6 +168,9 @@ Config& Config::getInstance()
 void Config::loadFromFile( const string &strSettingPath )
 {
     cv::FileStorage fSettings(strSettingPath, cv::FileStorage::READ);
+
+    Config::imgWidth() = fSettings["Camera.width"];
+    Config::imgHeight() = fSettings["Camera.height"];
 
     Config::minEntropyRatio() = fSettings["min_entropy_ratio"]; //loadSafe(config, "min_entropy_ratio", Config::minEntropyRatio()); 
     Config::maxKFTDist() = fSettings["max_kf_t_dist"]; //loadSafe(config, "max_kf_t_dist", Config::maxKFTDist());

@@ -455,8 +455,8 @@ bool Optimizer::isGoodSolution( Matrix4d DT, Matrix6d DTcov, double err )
     SelfAdjointEigenSolver<Matrix6d> eigensolver(DTcov);
     Vector6d DT_cov_eig = eigensolver.eigenvalues();
 
-    // if( DT_cov_eig(0)<0.0 || DT_cov_eig(5)>1.0 || err < 0.0 || err > 1.0 || !is_finite(DT) )
-    if( DT_cov_eig(0)<0.0 || err < 0.0 || err > 1.0 || !is_finite(DT) )
+    if( DT_cov_eig(0)<-1e-30 || DT_cov_eig(5)>1.0 || err < 0.0 || err > 1.0 || !is_finite(DT) )
+    // if( DT_cov_eig(0)<-1e-30 || err < 0.0 || err > 1.0 || !is_finite(DT) )
     {
         cout << endl << "Not a good solution " <<DT_cov_eig(0) << "\t" << DT_cov_eig(5) << "\t" << err << endl;
         return false;
@@ -480,7 +480,9 @@ void Optimizer::removeOutliers(Matrix4d DT, Frame *pFrame)
         // point features
         const int NP = pFrame->mvpMapPoints.size();
         vector<double> res_p;
+        vector<int> res_p_idx;
         res_p.reserve(NP);
+        res_p_idx.reserve(NP);
         for(int i=0; i<NP; ++i)
         {
             MapPoint* pMP = pFrame->mvpMapPoints[i];
@@ -495,7 +497,8 @@ void Optimizer::removeOutliers(Matrix4d DT, Frame *pFrame)
                 const cv::KeyPoint &kpUn = pFrame->mvKeysUn[i];
                 Vector2d pl_obs;
                 pl_obs << kpUn.pt.x, kpUn.pt.y;
-                res_p.push_back( ( pl_proj - pl_obs ).norm() * pFrame->mvInvLevelSigma2[kpUn.octave] );
+                res_p.push_back( ( pl_proj - pl_obs ).norm() * sqrt(pFrame->mvInvLevelSigma2[kpUn.octave]) );
+                res_p_idx.push_back(i);
                 //res_p.push_back( ( pl_proj - (*it)->pl_obs ).norm() );
             }
         }
@@ -504,16 +507,19 @@ void Optimizer::removeOutliers(Matrix4d DT, Frame *pFrame)
         //FIXME(done) : pMP may be nullptr
         vector_mean_stdv_mad( res_p, p_mean, p_stdv );
         inlier_th_p = Config::inlierK() * p_stdv;
-        //inlier_th_p = sqrt(7.815);
+        // inlier_th_p = sqrt(7.815);
         //cout << endl << p_mean << " " << p_stdv << "\t" << inlier_th_p << endl;
         // filter outliers
-        for(int i=0; i<NP; ++i)
+        for(int j=0, Nres=res_p_idx.size(); j<Nres; ++j)
         {
+            int i = res_p_idx[j];
             MapPoint* pMP = pFrame->mvpMapPoints[i];
             if(pMP)
-            {   
-                if(fabs(res_p[i]-p_mean) > inlier_th_p)
+            {
+                // if(res_p[j] > inlier_th_p)
+                if(fabs(res_p[j]-p_mean) > inlier_th_p)
                 {
+                    if(pFrame->mvbOutlier[i]) continue;
                     pFrame->mvbOutlier[i] = true;
                     pFrame->n_inliers--;
                     pFrame->n_inliers_pt--;
@@ -532,7 +538,9 @@ void Optimizer::removeOutliers(Matrix4d DT, Frame *pFrame)
         // line segment features
         const int NL = pFrame->mvpMapLines.size();
         vector<double> res_l;
+        vector<int> res_l_idx;
         res_l.reserve(NL);
+        res_l_idx.reserve(NL);
         for(int i=0; i<NL; ++i)
         {
             MapLine* pML = pFrame->mvpMapLines[i];
@@ -550,8 +558,9 @@ void Optimizer::removeOutliers(Matrix4d DT, Frame *pFrame)
                 Vector2d err_li;
                 err_li(0) = l_obs(0) * spl_proj(0) + l_obs(1) * spl_proj(1) + l_obs(2);
                 err_li(1) = l_obs(0) * epl_proj(0) + l_obs(1) * epl_proj(1) + l_obs(2);
-                res_l.push_back( err_li.norm() * sqrt( pML->sigma2 ) );
+                res_l.push_back( err_li.norm() * sqrt(pFrame->mvInvLevelSigma2[pFrame->mvKeys_Line[i].octave]) );
                 //res_l.push_back( err_li.norm() );
+                res_l_idx.push_back(i);
             }
         }
 
@@ -559,17 +568,20 @@ void Optimizer::removeOutliers(Matrix4d DT, Frame *pFrame)
         double l_stdv, l_mean, inlier_th_l;
         vector_mean_stdv_mad( res_l, l_mean, l_stdv );
         inlier_th_l = Config::inlierK() * l_stdv;
-        //inlier_th_p = sqrt(7.815);
+        // inlier_th_l = sqrt(12.59);
         //cout << endl << l_mean << " " << l_stdv << "\t" << inlier_th_l << endl << endl;
 
         // filter outliers
-        for(int i=0; i<NL; ++i)
+        for(int j=0, Nres=res_l_idx.size(); j<Nres; ++j)
         {
+            int i = res_l_idx[j];
             MapLine* pML = pFrame->mvpMapLines[i];
             if(pML)
             {
-                if(fabs(res_l[i]-l_mean) > inlier_th_l)
+                // if(res_l[j] > inlier_th_l)
+                if(fabs(res_l[j]-l_mean) > inlier_th_l)
                 {
+                    if(pFrame->mvbOutlier_Line[i]) continue;
                     pFrame->mvbOutlier_Line[i] = true;
                     pFrame->n_inliers--;
                     pFrame->n_inliers_ls--;
@@ -590,7 +602,7 @@ void Optimizer::removeOutliers(Matrix4d DT, Frame *pFrame)
         throw runtime_error("[StVO; stereoFrameHandler] Assetion failed: n_inliers != (n_inliers_pt + n_inliers_ls)");
 }
 
-int Optimizer::PoseOptimizationWithLine(Frame *pFrame)
+bool Optimizer::PoseOptimizationWithLine(Frame *pFrame)
 {
 
     // definitions
@@ -606,10 +618,12 @@ int Optimizer::PoseOptimizationWithLine(Frame *pFrame)
         DT_cov = pFrame->DT_cov;
         e_prev = pFrame->err_norm;
         if( !isGoodSolution(DT,DT_cov,e_prev) )
-            DT = Matrix4d::Identity();
+            DT = Converter::toMatrix4d(pFrame->mTcw_prev);   // Matrix4d::Identity();
     }
     else
-        DT = Matrix4d::Identity();
+        DT = Converter::toMatrix4d(pFrame->mTcw_prev);   // Matrix4d::Identity();
+
+    DT     = Converter::toMatrix4d(pFrame->mTcw);
 
     // optimization mode
     int mode = 0;   // GN - GNR - LM
@@ -619,7 +633,9 @@ int Optimizer::PoseOptimizationWithLine(Frame *pFrame)
     {
         // optimize
         DT_ = DT;
-        if( mode == 0 )      gaussNewtonOptimization(DT_,DT_cov,err,Config::maxIters(), pFrame);
+        if( mode == 0 )      {
+            gaussNewtonOptimization(DT_,DT_cov,err,Config::maxIters(), pFrame);
+        }
         else if( mode == 1 ) gaussNewtonOptimizationRobust(DT_,DT_cov,err,Config::maxIters(), pFrame);
         else if( mode == 2 ) levenbergMarquardtOptimization(DT_,DT_cov,err,Config::maxIters(), pFrame);
 
@@ -630,27 +646,40 @@ int Optimizer::PoseOptimizationWithLine(Frame *pFrame)
             // refine without outliers
             if( pFrame->n_inliers >= Config::minFeatures() )
             {
-                if( mode == 0 )      gaussNewtonOptimization(DT,DT_cov,err,Config::maxItersRef(), pFrame);
+                if( mode == 0 )      {
+                    gaussNewtonOptimization(DT,DT_cov,err,Config::maxItersRef(), pFrame);
+//                    removeOutliers(DT, pFrame);
+//                    gaussNewtonOptimization(DT,DT_cov,err,Config::maxItersRef(), pFrame);
+//                    removeOutliers(DT, pFrame);
+//                    gaussNewtonOptimization(DT,DT_cov,err,Config::maxItersRef(), pFrame);
+//                    removeOutliers(DT, pFrame);
+//                    gaussNewtonOptimization(DT,DT_cov,err,Config::maxItersRef(), pFrame);
+                }
                 else if( mode == 1 ) gaussNewtonOptimizationRobust(DT,DT_cov,err,Config::maxItersRef(), pFrame);
                 else if( mode == 2 ) levenbergMarquardtOptimization(DT,DT_cov,err,Config::maxItersRef(), pFrame);
             }
             else
             {
-                DT     = Matrix4d::Identity();
-                cout << "[StVO] not enough inliers (after removal)" << endl;
+                DT     = Matrix4d::Identity(); // DT     = Converter::toMatrix4d(pFrame->mTcw);
+                cout << "not enough inliers for next optimization (after optimization&removal)" << endl;
             }
         }
         else
         {
+            cout << "optimization didn't converge, perform optimizationRobust" << endl;
             gaussNewtonOptimizationRobust(DT,DT_cov,err,Config::maxItersRef(), pFrame);
+//            gaussNewtonOptimization(DT,DT_cov,err,Config::maxItersRef(), pFrame);
+//            removeOutliers(DT_, pFrame);
+//            gaussNewtonOptimization(DT,DT_cov,err,Config::maxItersRef(), pFrame);
+//            removeOutliers(DT_, pFrame);
+//            gaussNewtonOptimization(DT,DT_cov,err,Config::maxItersRef(), pFrame);
             //DT     = Matrix4d::Identity();
-            //cout << "[StVO] optimization didn't converge" << endl;
         }
     }
     else
     {
-        DT     = Matrix4d::Identity();
-        cout << "[StVO] not enough inliers (before optimization)" << endl;
+        DT     = Matrix4d::Identity(); // DT     = Converter::toMatrix4d(pFrame->mTcw);
+        cout << "not enough inliers (before optimization)" << endl;
     }
 
 
@@ -658,27 +687,28 @@ int Optimizer::PoseOptimizationWithLine(Frame *pFrame)
     if( isGoodSolution(DT,DT_cov,err) && DT != Matrix4d::Identity() )
     {
         // pFrame->DT       = expmap_se3(logmap_se3( inverse_se3( DT ) ));
-        pFrame->mTcw      = Converter::toCvMat(expmap_se3(logmap_se3(DT)));
+        pFrame->SetPose(Converter::toCvMat(expmap_se3(logmap_se3(DT))));
         pFrame->DT_cov   = DT_cov;
         pFrame->err_norm = err;
         // pFrame->Tfw      = expmap_se3(logmap_se3( pFrame->Tfw * pFrame->DT ));
         // pFrame->Tfw_cov  = unccomp_se3( pFrame->Tfw, pFrame->Tfw_cov, DT_cov );
         SelfAdjointEigenSolver<Matrix6d> eigensolver(DT_cov);
         pFrame->DT_cov_eig = eigensolver.eigenvalues();
+        return true;
     }
     else
     {
         cout<<"Can not estimate current frame pose, set Identity!"<<endl;
         //setAsOutliers();
-        DT = Matrix4d::Identity();
-        pFrame->mTcw       = Converter::toCvMat(DT);
-        pFrame->DT_cov   = Matrix6d::Zero();
+        DT = Converter::toMatrix4d(pFrame->mTcw_prev); // DT = Matrix4d::Identity();
+        pFrame->SetPose(Converter::toCvMat(DT));
+        // pFrame->DT_cov   = Matrix6d::Zero();         // keep pFrame->DT_cov
         pFrame->err_norm = -1.0;
         // pFrame->Tfw      = pFrame->Tfw;
         // pFrame->Tfw_cov  = pFrame->Tfw_cov;
         pFrame->DT_cov_eig = Vector6d::Zero();
+        return false;
     }
-    return 0;
 }
 
 void Optimizer::gaussNewtonOptimization(Matrix4d &DT, Matrix6d &DT_cov, double &err_, int max_iters, Frame* pFrame)
@@ -851,7 +881,6 @@ void Optimizer::optimizeFunctions(Matrix4d DT, Matrix6d &H, Vector6d &g, double 
     // point features
     int N_p = 0;        // orbslam number of point features
     int N_l = 0;
-    int nInitialCorrespondences = 0;
     Matrix3d Rcw = DT.block<3,3>(0,0);
     Vector3d tcw = DT.col(3).head(3);
 
@@ -862,12 +891,8 @@ void Optimizer::optimizeFunctions(Matrix4d DT, Matrix6d &H, Vector6d &g, double 
     for(int i=0; i<NP; ++i)
     {
         MapPoint* pMP = pFrame->mvpMapPoints[i];
-        if(pMP)
-        // if( (*it)->inlier )
+        if(pMP && !pFrame->mvbOutlier[i])
         {
-            nInitialCorrespondences++;
-            pFrame->mvbOutlier[i] = false;
-
             const cv::KeyPoint &kpUn = pFrame->mvKeysUn[i];
             Vector2d obs;
             obs << kpUn.pt.x, kpUn.pt.y;
@@ -903,7 +928,7 @@ void Optimizer::optimizeFunctions(Matrix4d DT, Matrix6d &H, Vector6d &g, double 
             double r = err_i_norm * sqrt(invSigma2);
             // if employing robust cost function
             double w  = 1.0;
-            w = robustWeightCauchy(r) ;
+            w = robustWeightCauchy(r);
 
             // if down-weighting far samples
             //double zdist   = P_(2) * 1.0 / ( cam->getB()*cam->getFx());
@@ -924,9 +949,8 @@ void Optimizer::optimizeFunctions(Matrix4d DT, Matrix6d &H, Vector6d &g, double 
     for(int i=0; i<NL; ++i)
     {
         MapLine* pML = pFrame->mvpMapLines[i];
-        if(pML)
+        if(pML && !pFrame->mvbOutlier_Line[i])
         {
-            nInitialCorrespondences++;
             //LineFeature* obs = pFrame->stereo_ls[i];
             Vector3d l_obs = pFrame->mvle_l[i]; //obs->le_obs;
 
@@ -974,8 +998,7 @@ void Optimizer::optimizeFunctions(Matrix4d DT, Matrix6d &H, Vector6d &g, double 
             J_aux = ( Js_aux * ds + Je_aux * de ) / std::max(Config::homogTh(),err_i_norm);
 
             // define the residue
-            double s2 = pML->sigma2;
-            double r = err_i_norm * sqrt(s2);
+            double r = err_i_norm * sqrt(pFrame->mvInvLevelSigma2[pFrame->mvKeys_Line[i].octave]);
 
             // if employing robust cost function
             double w  = 1.0;
@@ -1038,7 +1061,7 @@ void Optimizer::optimizeFunctionsRobust(Matrix4d DT, Matrix6d &H, Vector6d &g, d
     for(int i=0; i<NP; ++i)
     {
         MapPoint* pMP = pFrame->mvpMapPoints[i];
-        if(pMP)
+        if(pMP && !pFrame->mvbOutlier[i])
         {
             nInitialCorrespondences++;
             cv::Mat Xw = pMP->GetWorldPos();
@@ -1058,10 +1081,11 @@ void Optimizer::optimizeFunctionsRobust(Matrix4d DT, Matrix6d &H, Vector6d &g, d
     }
 
     // line segment features pre-weight computation
-    for(int i=0; i<NP; ++i)
+    const int NL = pFrame->mvpMapLines.size();
+    for(int i=0; i<NL; ++i)
     {
         MapLine* pML = pFrame->mvpMapLines[i];
-        if(pML)
+        if(pML && !pFrame->mvbOutlier_Line[i])
         {
             nInitialCorrespondences++;
             //LineFeature* obs = pFrame->stereo_ls[i];
@@ -1127,11 +1151,11 @@ void Optimizer::optimizeFunctionsRobust(Matrix4d DT, Matrix6d &H, Vector6d &g, d
 
     {
     unique_lock<mutex> lock(MapPoint::mGlobalMutex);
-    const int NL = pFrame->mvpMapPoints.size();
-    for(int i=0; i<NL; ++i)
+    const int NP = pFrame->mvpMapPoints.size();
+    for(int i=0; i<NP; ++i)
     {
         MapPoint* pMP = pFrame->mvpMapPoints[i];
-        if(pMP)
+        if(pMP && !pFrame->mvbOutlier[i])
         {
             cv::Mat Xw = pMP->GetWorldPos();
             Vector3d P_;
@@ -1173,7 +1197,7 @@ void Optimizer::optimizeFunctionsRobust(Matrix4d DT, Matrix6d &H, Vector6d &g, d
 
             // if using uncertainty weights
             //----------------------------------------------------
-            if( false )
+            if( false ) {}
             /*
             {
             
@@ -1184,7 +1208,9 @@ void Optimizer::optimizeFunctionsRobust(Matrix4d DT, Matrix6d &H, Vector6d &g, d
                 J_Pp  << gz, 0.f, -gx, 0.f, gz, -gy;
                 J_Pp  << J_Pp * DT.block(0,0,3,3);
                 covp  << J_Pp * covP_ * J_Pp.transpose();
-                covp  << covp / std::max(Config::homogTh(),gz2*gz2);               // Covariance of the 3D projection \hat{p} up to f2*b2*sigma2
+                covp  << covp / std::max(Config::homogTh(),gz2*gz2);
+                // Covariance of the 3D projection \hat{p} up to f2*b2*sigma2
+
                 covp  = sqrt(s2) * cam->getB()* cam->getFx() * covp;
                 covp(0,0) += s2;
                 covp(1,1) += s2;
@@ -1227,11 +1253,12 @@ void Optimizer::optimizeFunctionsRobust(Matrix4d DT, Matrix6d &H, Vector6d &g, d
         }
     }
 
+    const int NL = pFrame->mvpMapLines.size();
     // line segment features
     for(int i=0; i<NL; ++i)
     {
         MapLine* pML = pFrame->mvpMapLines[i];
-        if(pML)
+        if(pML && !pFrame->mvbOutlier_Line[i])
         {
             //LineFeature* obs = pFrame->stereo_ls[i];
             Vector3d l_obs = pFrame->mvle_l[i]; //obs->le_obs;
@@ -1280,7 +1307,7 @@ void Optimizer::optimizeFunctionsRobust(Matrix4d DT, Matrix6d &H, Vector6d &g, d
             // jacobian
             J_aux = ( Js_aux * ds + Je_aux * de ) / std::max(Config::homogTh(),err_i_norm);
             // define the residue
-            double s2 = pML->sigma2;
+            // double sqrt_s2 = sqrt(pFrame->mvInvLevelSigma2[pFrame->mvKeys_Line[i].octave])
             double r = err_i_norm;
             // if employing robust cost function
             double w  = 1.0;

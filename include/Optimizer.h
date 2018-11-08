@@ -52,7 +52,7 @@ public:
     int static PoseOptimization(Frame* pFrame);
   
     void static removeOutliers(Matrix4d DT, Frame *pFrame);
-    int static PoseOptimizationWithLine(Frame* pFrame);
+    bool static PoseOptimizationWithLine(Frame* pFrame);
 
     // if bFixScale is true, 6DoF optimization (stereo,rgbd), 7DoF otherwise (mono)
     void static OptimizeEssentialGraph(Map* pMap, KeyFrame* pLoopKF, KeyFrame* pCurKF,

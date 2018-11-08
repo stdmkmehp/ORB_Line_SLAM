@@ -54,12 +54,13 @@ protected:
 
     // Info of the frame to be drawn
     cv::Mat mIm;
-    int N;
+    long unsigned int mnId;
+    int N, N_l;
     vector<cv::KeyPoint> mvCurrentKeys;
-    vector<cv::line_descriptor::KeyLine> mvCurrentKeys_Line;
-    vector<bool> mvbMap, mvbVO;
+    vector<cv::line_descriptor::KeyLine> mvCurrentKeys_l;
+    vector<bool> mvbMap, mvbVO, mvbMap_l, mvbVO_l;
     bool mbOnlyTracking;
-    int mnTracked, mnTrackedVO;
+    int mnTracked, mnTrackedVO, mnTracked_l, mnTrackedVO_l;
     vector<cv::KeyPoint> mvIniKeys;
     vector<int> mvIniMatches;
     int mState;
