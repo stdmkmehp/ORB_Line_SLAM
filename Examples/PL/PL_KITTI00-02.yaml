@@ -105,7 +105,7 @@ min_ratio_12_l    : 0.9       # parameter to avoid outliers in line matching
 ls_min_disp_ratio : 0.7        # min ratio between min(disp)/max(disp) for a LS
 
 # Adaptative FAST parameters
-fast_min_th       : 5          # min. value for FAST threshold
+fast_min_th       : 0          # min. value for FAST threshold
 fast_max_th       : 50         # max. value for FAST threshold
 fast_inc_th       : 5          # base increment for the FAST threshold
 fast_feat_th      : 50         # base number of features to increase/decrease FAST threshold

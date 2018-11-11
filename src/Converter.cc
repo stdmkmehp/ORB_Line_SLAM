@@ -91,6 +91,36 @@ cv::Mat Converter::toCvMat(const Eigen::Matrix<double,3,1> &m)
     return cvMat.clone();
 }
 
+cv::Mat Converter::toInvCvMat(const cv::Mat &T_cvMat)
+{
+    cv::Mat T_inv = cv::Mat::eye(4,4,T_cvMat.type());
+    cv::Mat R = T_cvMat.rowRange(0,3).colRange(0,3);
+    cv::Mat t = T_cvMat.rowRange(0,3).col(3);
+    cv::Mat R_trans = R.t();
+    cv::Mat t_inv = -R_trans*t;
+
+    R_trans.copyTo(T_inv.rowRange(0,3).colRange(0,3));
+    t_inv.copyTo(T_inv.rowRange(0,3).col(3));
+    return T_inv.clone();
+}
+
+cv::Mat Converter::toInvCvMat(const Eigen::Matrix<double,4,4> &T_eigenMtrx)
+{
+    return toInvCvMat(toCvMat(T_eigenMtrx));
+
+//    cv::Mat T_inv = cv::Mat::eye(4,4,CV_32F);
+//    Eigen::Matrix3d Reigen = T_eigenMtrx.block<3,3>(0,0);
+//    Eigen::Matrix<double,3,1> teigen = T_eigenMtrx.block<3,1>(0,3);
+//    cv::Mat R = Converter::toCvMat(Reigen);
+//    cv::Mat t = Converter::toCvMat(teigen);
+//    cv::Mat R_trans = R.t();
+//    cv::Mat t_inv = -R_trans*t;
+
+//    R_trans.copyTo(T_inv.rowRange(0,3).colRange(0,3));
+//    t_inv.copyTo(T_inv.rowRange(0,3).col(3));
+//    return T_inv.clone();
+}
+
 cv::Mat Converter::toCvSE3(const Eigen::Matrix<double,3,3> &R, const Eigen::Matrix<double,3,1> &t)
 {
     cv::Mat cvMat = cv::Mat::eye(4,4,CV_32F);
@@ -144,6 +174,32 @@ Eigen::Matrix<double,4,4> Converter::toMatrix4d(const cv::Mat &T)
     T.at<float>(2, 0), T.at<float>(2, 1), T.at<float>(2, 2), T.at<float>(2, 3),
                     0,                 0,                 0,                 1;
     return M;
+}
+
+Eigen::Matrix<double,4,4> Converter::toInvMatrix4d(const Eigen::Matrix<double,4,4> &T_eigenMtrx)
+{
+    Eigen::Matrix<double,4,4> T_inv(Eigen::Matrix4d::Identity());
+    Eigen::Matrix<double,3,3> R = T_eigenMtrx.block<3,3>(0,0);
+    Eigen::Matrix<double,3,1> t = T_eigenMtrx.block<3,1>(0,3);
+    T_inv.block<3,3>(0,0) = R.transpose();
+    T_inv.block<3,1>(0,3) = -R.transpose()*t;
+    return T_inv;
+}
+
+Eigen::Matrix<double,4,4> Converter::toInvMatrix4d(const cv::Mat &T_cvMat)
+{
+    return toInvMatrix4d(toMatrix4d(T_cvMat));
+
+//    Eigen::Matrix<double,4,4> T_inv(Eigen::Matrix4d::Identity());
+//    Eigen::Matrix<double,3,3> R;
+//    Eigen::Matrix<double,3,1> t;
+//    R <<    T_cvMat.at<float>(0, 0), T_cvMat.at<float>(0, 1), T_cvMat.at<float>(0, 2),
+//            T_cvMat.at<float>(1, 0), T_cvMat.at<float>(1, 1), T_cvMat.at<float>(1, 2),
+//            T_cvMat.at<float>(2, 0), T_cvMat.at<float>(2, 1), T_cvMat.at<float>(2, 2);
+//    t <<    T_cvMat.at<float>(0, 3), T_cvMat.at<float>(1, 3), T_cvMat.at<float>(2, 3);
+//    T_inv.block<3,3>(0,0) = R.transpose();
+//    T_inv.block<3,1>(0,3) = -R.transpose()*t;
+//    return T_inv;
 }
 
 std::vector<float> Converter::toQuaternion(const cv::Mat &M)

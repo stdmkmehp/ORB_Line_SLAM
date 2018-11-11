@@ -455,10 +455,10 @@ bool Optimizer::isGoodSolution( Matrix4d DT, Matrix6d DTcov, double err )
     SelfAdjointEigenSolver<Matrix6d> eigensolver(DTcov);
     Vector6d DT_cov_eig = eigensolver.eigenvalues();
 
-    if( DT_cov_eig(0)<-1e-30 || DT_cov_eig(5)>1.0 || err < 0.0 || err > 1.0 || !is_finite(DT) )
-    // if( DT_cov_eig(0)<-1e-30 || err < 0.0 || err > 1.0 || !is_finite(DT) )
+    if( DT_cov_eig(0)<0.0 || DT_cov_eig(5)>1.0 || err < 0.0 || err > 1.0 || !is_finite(DT) )
+    // if( DT_cov_eig(0)<-1e-30 || DT_cov_eig(5)>1.0 || err < 0.0 || err > 1.0 || !is_finite(DT) )
     {
-        cout << endl << "Not a good solution " <<DT_cov_eig(0) << "\t" << DT_cov_eig(5) << "\t" << err << endl;
+        cout << "Not a good solution:" <<DT_cov_eig(0) << " \t" << DT_cov_eig(5) << " \t" << err << endl;
         return false;
     }
 
@@ -469,8 +469,8 @@ void Optimizer::removeOutliers(Matrix4d DT, Frame *pFrame)
 {
 
     //TODO: if not usig mad stdv, use just a fixed threshold (sqrt(7.815)) to filter outliers (with a single for loop...)
-    Matrix3d Rcw = DT.block<3,3>(0,0);
-    Vector3d tcw = DT.col(3).head(3);
+    Matrix3d DR = DT.block<3,3>(0,0);
+    Vector3d Dt = DT.col(3).head(3);
 
     {
     unique_lock<mutex> lock(MapPoint::mGlobalMutex);
@@ -488,11 +488,9 @@ void Optimizer::removeOutliers(Matrix4d DT, Frame *pFrame)
             MapPoint* pMP = pFrame->mvpMapPoints[i];
             if(pMP)
             {
-                cv::Mat Xw = pMP->GetWorldPos();
-                Eigen::Vector3d P_;
-                P_ << Xw.at<float>(0),Xw.at<float>(1),Xw.at<float>(2);
-                P_ = Rcw*P_+tcw;                                //convert point from world to camera
-                Eigen::Vector2d pl_proj = pFrame->projection( P_ );
+                Vector3d P_lastframe = pFrame->mv3DpointInPrevFrame[i];
+                Vector3d P_ = DR*P_lastframe+Dt;
+                Vector2d pl_proj = pFrame->projection( P_ );
 
                 const cv::KeyPoint &kpUn = pFrame->mvKeysUn[i];
                 Vector2d pl_obs;
@@ -524,12 +522,12 @@ void Optimizer::removeOutliers(Matrix4d DT, Frame *pFrame)
                     pFrame->n_inliers--;
                     pFrame->n_inliers_pt--;
                 }
-                else if(pFrame->mvbOutlier[i])          //convert from outlier to inlier
-                {
-                    pFrame->mvbOutlier[i] = false;
-                    pFrame->n_inliers++;
-                    pFrame->n_inliers_pt++;
-                }
+//                else if(pFrame->mvbOutlier[i])          //convert from outlier to inlier
+//                {
+//                    pFrame->mvbOutlier[i] = false;
+//                    pFrame->n_inliers++;
+//                    pFrame->n_inliers_pt++;
+//                }
             }
         }
     }
@@ -549,9 +547,11 @@ void Optimizer::removeOutliers(Matrix4d DT, Frame *pFrame)
             //LineFeature* obs = pFrame->stereo_ls[i];
                 Vector3d l_obs = pFrame->mvle_l[i]; //obs->le_obs;
 
-                Vector3d sP_ = Rcw * pML->mWorldPos_sP + tcw;
+                Vector3d sP_lastframe = pFrame->mv3DlineInPrevFrame[i].first;
+                Vector3d sP_ = DR*sP_lastframe+Dt;
+                Vector3d eP_lastframe = pFrame->mv3DlineInPrevFrame[i].second;
+                Vector3d eP_ = DR*eP_lastframe+Dt;
                 Vector2d spl_proj = pFrame->projection( sP_ );
-                Vector3d eP_ = Rcw * pML->mWorldPos_eP + tcw;
                 Vector2d epl_proj = pFrame->projection( eP_ );
 
                 // projection error
@@ -586,12 +586,12 @@ void Optimizer::removeOutliers(Matrix4d DT, Frame *pFrame)
                     pFrame->n_inliers--;
                     pFrame->n_inliers_ls--;
                 }
-                else if(pFrame->mvbOutlier_Line[i])     //convert from outlier to inlier
-                {
-                    pFrame->mvbOutlier_Line[i] = false;
-                    pFrame->n_inliers++;
-                    pFrame->n_inliers_ls++;
-                }
+//                else if(pFrame->mvbOutlier_Line[i])     //convert from outlier to inlier
+//                {
+//                    pFrame->mvbOutlier_Line[i] = false;
+//                    pFrame->n_inliers++;
+//                    pFrame->n_inliers_ls++;
+//                }
             }
         }
     }
@@ -614,17 +614,46 @@ bool Optimizer::PoseOptimizationWithLine(Frame *pFrame)
     // set init pose (depending on the use of prior information or not, and on the goodness of previous solution)
     if( Config::useMotionModel() )
     {
-        DT     = Converter::toMatrix4d(pFrame->mTcw);       //T^C_W
+        DT     = Converter::toMatrix4d(pFrame->mTcw) * Converter::toInvMatrix4d(pFrame->mTcw_prev);
+        // DT     = expmap_se3(logmap_se3( inverse_se3( pFrame->DT ) )); //pFrame->DT;
         DT_cov = pFrame->DT_cov;
         e_prev = pFrame->err_norm;
         if( !isGoodSolution(DT,DT_cov,e_prev) )
-            DT = Converter::toMatrix4d(pFrame->mTcw_prev);   // Matrix4d::Identity();
+            DT = Matrix4d::Identity();
     }
     else
-        DT = Converter::toMatrix4d(pFrame->mTcw_prev);   // Matrix4d::Identity();
+        DT = Matrix4d::Identity();
 
-    DT     = Converter::toMatrix4d(pFrame->mTcw);
+    Matrix4d Tlw = Converter::toMatrix4d(pFrame->mTcw_prev);
+    Matrix3d Rlw = Tlw.block<3,3>(0,0);
+    Vector3d tlw = Tlw.col(3).head(3);
 
+    const int NP = pFrame->mvpMapPoints.size();
+    pFrame->mv3DpointInPrevFrame.resize(NP);
+    for(int i=0; i<NP; ++i)
+    {
+        MapPoint* pMP = pFrame->mvpMapPoints[i];
+        if(pMP && !pFrame->mvbOutlier[i])
+        {
+            cv::Mat Xw = pMP->GetWorldPos();
+            Vector3d P_w(Xw.at<float>(0),Xw.at<float>(1),Xw.at<float>(2));
+            Vector3d P_prevframe = Rlw*P_w+tlw;
+            pFrame->mv3DpointInPrevFrame[i] = P_prevframe;
+        }
+    }
+
+    const int NL = pFrame->mvpMapLines.size();
+    pFrame->mv3DlineInPrevFrame.resize(NL);
+    for(int i=0; i<NL; ++i)
+    {
+        MapLine* pML = pFrame->mvpMapLines[i];
+        if(pML && !pFrame->mvbOutlier_Line[i])
+        {
+            Vector3d sP_prevframe = Rlw*pML->mWorldPos_sP+tlw;
+            Vector3d eP_prevframe = Rlw*pML->mWorldPos_eP+tlw;
+            pFrame->mv3DlineInPrevFrame[i] = make_pair(sP_prevframe, eP_prevframe);
+        }
+    }
     // optimization mode
     int mode = 0;   // GN - GNR - LM
 
@@ -633,9 +662,7 @@ bool Optimizer::PoseOptimizationWithLine(Frame *pFrame)
     {
         // optimize
         DT_ = DT;
-        if( mode == 0 )      {
-            gaussNewtonOptimization(DT_,DT_cov,err,Config::maxIters(), pFrame);
-        }
+        if( mode == 0 ) gaussNewtonOptimization(DT_,DT_cov,err,Config::maxIters(), pFrame);
         else if( mode == 1 ) gaussNewtonOptimizationRobust(DT_,DT_cov,err,Config::maxIters(), pFrame);
         else if( mode == 2 ) levenbergMarquardtOptimization(DT_,DT_cov,err,Config::maxIters(), pFrame);
 
@@ -646,21 +673,13 @@ bool Optimizer::PoseOptimizationWithLine(Frame *pFrame)
             // refine without outliers
             if( pFrame->n_inliers >= Config::minFeatures() )
             {
-                if( mode == 0 )      {
-                    gaussNewtonOptimization(DT,DT_cov,err,Config::maxItersRef(), pFrame);
-//                    removeOutliers(DT, pFrame);
-//                    gaussNewtonOptimization(DT,DT_cov,err,Config::maxItersRef(), pFrame);
-//                    removeOutliers(DT, pFrame);
-//                    gaussNewtonOptimization(DT,DT_cov,err,Config::maxItersRef(), pFrame);
-//                    removeOutliers(DT, pFrame);
-//                    gaussNewtonOptimization(DT,DT_cov,err,Config::maxItersRef(), pFrame);
-                }
+                if( mode == 0 ) gaussNewtonOptimization(DT,DT_cov,err,Config::maxItersRef(), pFrame);
                 else if( mode == 1 ) gaussNewtonOptimizationRobust(DT,DT_cov,err,Config::maxItersRef(), pFrame);
                 else if( mode == 2 ) levenbergMarquardtOptimization(DT,DT_cov,err,Config::maxItersRef(), pFrame);
             }
             else
             {
-                DT     = Matrix4d::Identity(); // DT     = Converter::toMatrix4d(pFrame->mTcw);
+                DT     = Matrix4d::Identity();
                 cout << "not enough inliers for next optimization (after optimization&removal)" << endl;
             }
         }
@@ -668,11 +687,6 @@ bool Optimizer::PoseOptimizationWithLine(Frame *pFrame)
         {
             cout << "optimization didn't converge, perform optimizationRobust" << endl;
             gaussNewtonOptimizationRobust(DT,DT_cov,err,Config::maxItersRef(), pFrame);
-//            gaussNewtonOptimization(DT,DT_cov,err,Config::maxItersRef(), pFrame);
-//            removeOutliers(DT_, pFrame);
-//            gaussNewtonOptimization(DT,DT_cov,err,Config::maxItersRef(), pFrame);
-//            removeOutliers(DT_, pFrame);
-//            gaussNewtonOptimization(DT,DT_cov,err,Config::maxItersRef(), pFrame);
             //DT     = Matrix4d::Identity();
         }
     }
@@ -686,12 +700,16 @@ bool Optimizer::PoseOptimizationWithLine(Frame *pFrame)
     // set estimated pose
     if( isGoodSolution(DT,DT_cov,err) && DT != Matrix4d::Identity() )
     {
-        // pFrame->DT       = expmap_se3(logmap_se3( inverse_se3( DT ) ));
-        pFrame->SetPose(Converter::toCvMat(expmap_se3(logmap_se3(DT))));
+        pFrame->DT       =  expmap_se3(logmap_se3( inverse_se3( DT ) ));
         pFrame->DT_cov   = DT_cov;
+        Matrix4d Twf = Converter::toInvMatrix4d(pFrame->mTcw_prev);         // T^w_lastframe
+        Matrix4d Twc_init = Twf * pFrame->DT;
+        Matrix4d Twc = expmap_se3(logmap_se3(Twf * pFrame->DT));                                    // T^w_currentframe = T^w_lastframe * T^last_current
+        cv::Mat Tcw = Converter::toInvCvMat(Twc);
+        pFrame->SetPose(Tcw);
         pFrame->err_norm = err;
-        // pFrame->Tfw      = expmap_se3(logmap_se3( pFrame->Tfw * pFrame->DT ));
-        // pFrame->Tfw_cov  = unccomp_se3( pFrame->Tfw, pFrame->Tfw_cov, DT_cov );
+//        pFrame->Tfw      = expmap_se3(logmap_se3( pFrame->Tfw * pFrame->DT ));
+//        pFrame->Tfw_cov  = unccomp_se3( pFrame->Tfw, pFrame->Tfw_cov, DT_cov );
         SelfAdjointEigenSolver<Matrix6d> eigensolver(DT_cov);
         pFrame->DT_cov_eig = eigensolver.eigenvalues();
         return true;
@@ -700,12 +718,12 @@ bool Optimizer::PoseOptimizationWithLine(Frame *pFrame)
     {
         cout<<"Can not estimate current frame pose, set Identity!"<<endl;
         //setAsOutliers();
-        DT = Converter::toMatrix4d(pFrame->mTcw_prev); // DT = Matrix4d::Identity();
-        pFrame->SetPose(Converter::toCvMat(DT));
-        // pFrame->DT_cov   = Matrix6d::Zero();         // keep pFrame->DT_cov
+        pFrame->DT = Matrix4d::Identity();
+        // pFrame->SetPose(pFrame->mTcw_prev);
+        pFrame->DT_cov   = Matrix6d::Zero();
         pFrame->err_norm = -1.0;
-        // pFrame->Tfw      = pFrame->Tfw;
-        // pFrame->Tfw_cov  = pFrame->Tfw_cov;
+//        pFrame->Tfw      = pFrame->Tfw;
+//        pFrame->Tfw_cov  = pFrame->Tfw_cov;
         pFrame->DT_cov_eig = Vector6d::Zero();
         return false;
     }
@@ -730,7 +748,7 @@ void Optimizer::gaussNewtonOptimization(Matrix4d &DT, Matrix6d &DT_cov, double &
         }
         // if the difference is very small stop
         if( ( ( err < Config::minError()) || abs(err-err_prev) < Config::minErrorChange() ) ) {
-            cout << "[StVO] Small optimization improvement" << endl;
+            // cout << "[StVO] Small optimization improvement" << endl;
             break;
         }
         // update step
@@ -881,8 +899,8 @@ void Optimizer::optimizeFunctions(Matrix4d DT, Matrix6d &H, Vector6d &g, double 
     // point features
     int N_p = 0;        // orbslam number of point features
     int N_l = 0;
-    Matrix3d Rcw = DT.block<3,3>(0,0);
-    Vector3d tcw = DT.col(3).head(3);
+    Matrix3d DR = DT.block<3,3>(0,0);
+    Vector3d Dt = DT.col(3).head(3);
 
     {
     unique_lock<mutex> lock(MapPoint::mGlobalMutex);
@@ -894,17 +912,15 @@ void Optimizer::optimizeFunctions(Matrix4d DT, Matrix6d &H, Vector6d &g, double 
         if(pMP && !pFrame->mvbOutlier[i])
         {
             const cv::KeyPoint &kpUn = pFrame->mvKeysUn[i];
-            Vector2d obs;
-            obs << kpUn.pt.x, kpUn.pt.y;
+            Vector2d pl_obs;
+            pl_obs << kpUn.pt.x, kpUn.pt.y;
 
-            cv::Mat Xw = pMP->GetWorldPos();
-            Vector3d P_;
-            P_ << Xw.at<float>(0),Xw.at<float>(1),Xw.at<float>(2);
-            P_ = Rcw*P_+tcw;                                //convert point from world to camera
-            Vector2d proj = pFrame->projection( P_ );
+            Vector3d P_lastframe = pFrame->mv3DpointInPrevFrame[i];
+            Vector3d P_ = DR*P_lastframe+Dt;
+            Vector2d pl_proj = pFrame->projection( P_ );
 
             // projection error
-            Vector2d err_i    = proj - obs;
+            Vector2d err_i    = pl_proj - pl_obs;
             double err_i_norm = err_i.norm();
             // estimate variables for J, H, and g
             double gx   = P_(0);
@@ -924,8 +940,7 @@ void Optimizer::optimizeFunctions(Matrix4d DT, Matrix6d &H, Vector6d &g, double 
                      + fgz2 * ( gx*gz*dy - gy*gz*dx );
             J_aux = J_aux / std::max(Config::homogTh(),err_i_norm);
             // define the residue
-            const float invSigma2 = pFrame->mvInvLevelSigma2[kpUn.octave];
-            double r = err_i_norm * sqrt(invSigma2);
+            double r = err_i_norm * sqrt(pFrame->mvInvLevelSigma2[kpUn.octave]);
             // if employing robust cost function
             double w  = 1.0;
             w = robustWeightCauchy(r);
@@ -954,10 +969,13 @@ void Optimizer::optimizeFunctions(Matrix4d DT, Matrix6d &H, Vector6d &g, double 
             //LineFeature* obs = pFrame->stereo_ls[i];
             Vector3d l_obs = pFrame->mvle_l[i]; //obs->le_obs;
 
-            Vector3d sP_ = Rcw * pML->mWorldPos_sP + tcw;
+            Vector3d sP_lastframe = pFrame->mv3DlineInPrevFrame[i].first;
+            Vector3d sP_ = DR*sP_lastframe+Dt;
+            Vector3d eP_lastframe = pFrame->mv3DlineInPrevFrame[i].second;
+            Vector3d eP_ = DR*eP_lastframe+Dt;
             Vector2d spl_proj = pFrame->projection( sP_ );
-            Vector3d eP_ = Rcw * pML->mWorldPos_eP + tcw;
             Vector2d epl_proj = pFrame->projection( eP_ );
+
             // projection error
             Vector2d err_i;
             err_i(0) = l_obs(0) * spl_proj(0) + l_obs(1) * spl_proj(1) + l_obs(2);
@@ -1050,9 +1068,8 @@ void Optimizer::optimizeFunctionsRobust(Matrix4d DT, Matrix6d &H, Vector6d &g, d
 
     vector<double> res_p, res_l;
 
-    int nInitialCorrespondences = 0;
-    Matrix3d Rcw = DT.block<3,3>(0,0);
-    Vector3d tcw = DT.col(3).head(3);
+    Matrix3d DR = DT.block<3,3>(0,0);
+    Vector3d Dt = DT.col(3).head(3);
 
     {
     unique_lock<mutex> lock(MapPoint::mGlobalMutex);
@@ -1063,11 +1080,8 @@ void Optimizer::optimizeFunctionsRobust(Matrix4d DT, Matrix6d &H, Vector6d &g, d
         MapPoint* pMP = pFrame->mvpMapPoints[i];
         if(pMP && !pFrame->mvbOutlier[i])
         {
-            nInitialCorrespondences++;
-            cv::Mat Xw = pMP->GetWorldPos();
-            Vector3d P_;
-            P_ << Xw.at<float>(0),Xw.at<float>(1),Xw.at<float>(2);
-            P_ = Rcw*P_+tcw;                                //convert point from world to camera
+            Vector3d P_lastframe = pFrame->mv3DpointInPrevFrame[i];
+            Vector3d P_ = DR*P_lastframe+Dt;
             Vector2d proj = pFrame->projection( P_ );
 
             const cv::KeyPoint &kpUn = pFrame->mvKeysUn[i];
@@ -1087,13 +1101,15 @@ void Optimizer::optimizeFunctionsRobust(Matrix4d DT, Matrix6d &H, Vector6d &g, d
         MapLine* pML = pFrame->mvpMapLines[i];
         if(pML && !pFrame->mvbOutlier_Line[i])
         {
-            nInitialCorrespondences++;
             //LineFeature* obs = pFrame->stereo_ls[i];
             Vector3d l_obs = pFrame->mvle_l[i]; //obs->le_obs;
 
-            Vector3d sP_ = Rcw * pML->mWorldPos_sP + tcw;
+            Vector3d sP_lastframe = pFrame->mv3DlineInPrevFrame[i].first;
+            Vector3d sP_ = DR*sP_lastframe+Dt;
+            Vector3d eP_lastframe = pFrame->mv3DlineInPrevFrame[i].second;
+            Vector3d eP_ = DR*eP_lastframe+Dt;
+
             Vector2d spl_proj = pFrame->projection( sP_ );
-            Vector3d eP_ = Rcw * pML->mWorldPos_eP + tcw;
             Vector2d epl_proj = pFrame->projection( eP_ );
 
             // projection error
@@ -1157,15 +1173,13 @@ void Optimizer::optimizeFunctionsRobust(Matrix4d DT, Matrix6d &H, Vector6d &g, d
         MapPoint* pMP = pFrame->mvpMapPoints[i];
         if(pMP && !pFrame->mvbOutlier[i])
         {
-            cv::Mat Xw = pMP->GetWorldPos();
-            Vector3d P_;
-            P_ << Xw.at<float>(0),Xw.at<float>(1),Xw.at<float>(2);
-            P_ = Rcw*P_+tcw;                                //convert point from world to camera
-            Vector2d pl_proj = pFrame->projection( P_ );
-
             const cv::KeyPoint &kpUn = pFrame->mvKeysUn[i];
             Vector2d pl_obs;
             pl_obs << kpUn.pt.x, kpUn.pt.y;
+
+            Vector3d P_lastframe = pFrame->mv3DpointInPrevFrame[i];
+            Vector3d P_ = DR*P_lastframe+Dt;
+            Vector2d pl_proj = pFrame->projection( P_ );
 
             // projection error
             Vector2d err_i    = pl_proj - pl_obs;
@@ -1188,8 +1202,8 @@ void Optimizer::optimizeFunctionsRobust(Matrix4d DT, Matrix6d &H, Vector6d &g, d
                      + fgz2 * ( gx*gz*dy - gy*gz*dx );
             J_aux = J_aux / std::max(Config::homogTh(),err_i_norm);
             // define the residue
-            double s2 = pFrame->mvInvLevelSigma2[kpUn.octave];
-            double r = err_i_norm ;
+            double r = err_i_norm;
+            // double r = err_i_norm * sqrt(pFrame->mvInvLevelSigma2[kpUn.octave]);
             // if employing robust cost function
             double w  = 1.0;
             double x = r / s_p;
@@ -1197,7 +1211,7 @@ void Optimizer::optimizeFunctionsRobust(Matrix4d DT, Matrix6d &H, Vector6d &g, d
 
             // if using uncertainty weights
             //----------------------------------------------------
-            if( false ) {}
+            // if( false ) {}
             /*
             {
             
@@ -1263,9 +1277,12 @@ void Optimizer::optimizeFunctionsRobust(Matrix4d DT, Matrix6d &H, Vector6d &g, d
             //LineFeature* obs = pFrame->stereo_ls[i];
             Vector3d l_obs = pFrame->mvle_l[i]; //obs->le_obs;
 
-            Vector3d sP_ = Rcw * pML->mWorldPos_sP + tcw;
+            Vector3d sP_lastframe = pFrame->mv3DlineInPrevFrame[i].first;
+            Vector3d sP_ = DR*sP_lastframe+Dt;
+            Vector3d eP_lastframe = pFrame->mv3DlineInPrevFrame[i].second;
+            Vector3d eP_ = DR*eP_lastframe+Dt;
+
             Vector2d spl_proj = pFrame->projection( sP_ );
-            Vector3d eP_ = Rcw * pML->mWorldPos_eP + tcw;
             Vector2d epl_proj = pFrame->projection( eP_ );
 
             // projection error

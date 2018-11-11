@@ -493,7 +493,7 @@ void MapLine::AddObservation(KeyFrame* pKF, size_t idx)
         return;
     mObservations[pKF]=idx;
 
-    ++nObs;
+    nObs+=2;
     // if(pKF->mvuRight[idx]>=0)
     //     nObs+=2;
     // else
@@ -508,7 +508,7 @@ void MapLine::EraseObservation(KeyFrame* pKF)
         if(mObservations.count(pKF))
         {
             // int idx = mObservations[pKF];
-            --nObs;
+            nObs-=2;
             // if(pKF->mvuRight[idx]>=0)
             //     nObs-=2;
             // else

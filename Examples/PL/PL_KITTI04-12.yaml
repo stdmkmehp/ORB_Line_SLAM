@@ -84,7 +84,7 @@ lr_in_parallel     : 0      # 1 if detecting and matching features in parallel		
 pl_in_parallel     : 0      # 1 if detecting points and line segments in parallel	1->0
 best_lr_matches    : 1      # 1 if double-checking the matches between the two images
 adaptative_fast    : 1      # 1 if using adaptative fast_threshold
-use_motion_model   : 1     # 1 if using constant motion model
+use_motion_model   : 0     # 1 if using constant motion model
 
 # Tracking parameters
 # -----------------------------------------------------------------------------------------------------
@@ -135,7 +135,7 @@ orb_score        : 1            # 0 - HARRIS  |  1 - FAST
 orb_patch_size   : 31
 orb_fast_th      : 20           # default FAST threshold
 # LSD parameters
-lsd_nfeatures    : 1000          # set to 0 if keeping all lines					300->1000
+lsd_nfeatures    : 300          # set to 0 if keeping all lines					300->1000
 lsd_refine       : 0
 lsd_scale        : 1.2
 lsd_sigma_scale  : 0.6

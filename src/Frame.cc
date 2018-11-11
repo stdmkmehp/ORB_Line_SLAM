@@ -52,8 +52,8 @@ Frame::Frame(const Frame &frame)
      mfScaleFactor(frame.mfScaleFactor), mfLogScaleFactor(frame.mfLogScaleFactor),
      mvScaleFactors(frame.mvScaleFactors), mvInvScaleFactors(frame.mvInvScaleFactors),
      mvLevelSigma2(frame.mvLevelSigma2), mvInvLevelSigma2(frame.mvInvLevelSigma2), inv_width(frame.inv_width), inv_height(frame.inv_width),
-     DT_cov(frame.DT_cov), DT_cov_eig(frame.DT_cov_eig), err_norm(frame.err_norm),
-     n_inliers(n_inliers), n_inliers_pt(frame.n_inliers_pt), n_inliers_ls(frame.n_inliers_ls)
+     DT(frame.DT), DT_cov(frame.DT_cov), err_norm(frame.err_norm),
+     n_inliers(frame.n_inliers), n_inliers_pt(frame.n_inliers_pt), n_inliers_ls(frame.n_inliers_ls)
 {
     for(int i=0;i<FRAME_GRID_COLS;i++)
         for(int j=0; j<FRAME_GRID_ROWS; j++)
@@ -212,6 +212,11 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
     mvbOutlier_Line = vector<bool>(N_l,false);
 
     AssignFeaturesToGrid();
+
+    DT = Matrix4d::Identity();
+    DT_cov = Matrix6d::Zero();
+    DT_cov_eig = Vector6d::Zero();
+    err_norm = -1.0;
 }
 
 Frame::Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeStamp, ORBextractor* extractor,ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth)
@@ -372,11 +377,10 @@ void Frame::UpdatePoseMatrices()
     mOw = -mRcw.t()*mtcw;
 }
 
-void Frame::SetprevInformation(cv::Mat _Tcw, Matrix6d _DT_cov, Vector6d _DT_cov_eig, double _err_norm)
+void Frame::SetprevInformation(cv::Mat _Tcw, Matrix6d _DT_cov, double _err_norm)
 {
     mTcw_prev = _Tcw.clone();
     DT_cov = _DT_cov;
-    DT_cov_eig = _DT_cov_eig;
     err_norm = _err_norm;
 }
 

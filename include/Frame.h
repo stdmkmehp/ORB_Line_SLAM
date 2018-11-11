@@ -89,7 +89,10 @@ public:
 
     // Set the camera pose.
     void SetPose(cv::Mat Tcw);
-    void SetprevInformation(cv::Mat _Tcw, Matrix6d _DT_cov, Vector6d _DT_cov_eig, double _err_norm);
+
+    // Set Information of prevoius frame for track optimization
+    void SetprevInformation(cv::Mat _Tcw, Matrix6d _DT_cov, double _err_norm);
+
     // Computes rotation, translation and camera center matrices from the camera pose.
     void UpdatePoseMatrices();
 
@@ -166,6 +169,7 @@ public:
     // Number of KeyPoints.
     int N;
     int N_l;
+    int N_p;
 
     // Vector of keypoints (original for visualization) and undistorted (actually used by the system).
     // In the stereo case, mvKeysUn is redundant as images must be rectified.
@@ -181,27 +185,32 @@ public:
     std::vector<float> mvuRight;
     std::vector<float> mvDepth;
 
+    // for PLslam
+    // std::vector<LineFeature*> stereo_ls;
+    std::vector<pair<float,float>> mvDisparity_l;
+    std::vector<Vector3d> mvle_l;
+
+    // Flag to identify outlier associations.
+    std::vector<Vector3d> mv3DpointInPrevFrame;
+    std::vector<pair<Vector3d,Vector3d>> mv3DlineInPrevFrame;
+
     // Bag of Words Vector structures.
     DBoW2::BowVector mBowVec;
     DBoW2::FeatureVector mFeatVec;
 
     // ORB descriptor, each row associated to a keypoint.
     cv::Mat mDescriptors, mDescriptorsRight;
-    // Line descriptor, each row associated to a keypoint.
+    // Line descriptor, each row associated to a keyline.
     cv::Mat mDescriptors_Line, mDescriptorsRight_Line;
-
-    // for PLslam
-    // std::vector<LineFeature*> stereo_ls;
-    std::vector<pair<float,float>> mvDisparity_l;
-    std::vector<Vector3d> mvle_l;
-    std::vector<MapLine*> mvpMapLines;
-    std::vector<bool> mvbOutlier_Line;
 
     // MapPoints associated to keypoints, NULL pointer if no association.
     std::vector<MapPoint*> mvpMapPoints;
+    // MapLines associated to keylines, NULL pointer if no association.
+    std::vector<MapLine*> mvpMapLines;
 
     // Flag to identify outlier associations.
     std::vector<bool> mvbOutlier;
+    std::vector<bool> mvbOutlier_Line;
 
     // Keypoints are assigned to cells in a grid to reduce matching complexity when projecting MapPoints.
     static float mfGridElementWidthInv;
@@ -239,10 +248,13 @@ public:
     // grid cell
     double inv_width, inv_height; 
 
+//    Matrix6d Twf_cov;
+//    Vector6d Twf_cov_eig;       //T^w_f
+
+    Matrix4d DT;
     Matrix6d DT_cov;
     Vector6d DT_cov_eig;
     double   err_norm;
-
 
     int  n_inliers, n_inliers_pt, n_inliers_ls;
 
