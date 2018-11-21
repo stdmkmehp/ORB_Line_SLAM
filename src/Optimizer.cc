@@ -522,12 +522,12 @@ void Optimizer::removeOutliers(Matrix4d DT, Frame *pFrame)
                     pFrame->n_inliers--;
                     pFrame->n_inliers_pt--;
                 }
-//                else if(pFrame->mvbOutlier[i])          //convert from outlier to inlier
-//                {
-//                    pFrame->mvbOutlier[i] = false;
-//                    pFrame->n_inliers++;
-//                    pFrame->n_inliers_pt++;
-//                }
+                else if(pFrame->mvbOutlier[i])          //convert from outlier to inlier
+                {
+                    pFrame->mvbOutlier[i] = false;
+                    pFrame->n_inliers++;
+                    pFrame->n_inliers_pt++;
+                }
             }
         }
     }
@@ -568,7 +568,7 @@ void Optimizer::removeOutliers(Matrix4d DT, Frame *pFrame)
         double l_stdv, l_mean, inlier_th_l;
         vector_mean_stdv_mad( res_l, l_mean, l_stdv );
         inlier_th_l = Config::inlierK() * l_stdv;
-        // inlier_th_l = sqrt(12.59);
+        // inlier_th_l = sqrt(7.815);//sqrt(12.59);
         //cout << endl << l_mean << " " << l_stdv << "\t" << inlier_th_l << endl << endl;
 
         // filter outliers
@@ -586,12 +586,12 @@ void Optimizer::removeOutliers(Matrix4d DT, Frame *pFrame)
                     pFrame->n_inliers--;
                     pFrame->n_inliers_ls--;
                 }
-//                else if(pFrame->mvbOutlier_Line[i])     //convert from outlier to inlier
-//                {
-//                    pFrame->mvbOutlier_Line[i] = false;
-//                    pFrame->n_inliers++;
-//                    pFrame->n_inliers_ls++;
-//                }
+                else if(pFrame->mvbOutlier_Line[i])     //convert from outlier to inlier
+                {
+                    pFrame->mvbOutlier_Line[i] = false;
+                    pFrame->n_inliers++;
+                    pFrame->n_inliers_ls++;
+                }
             }
         }
     }
@@ -608,7 +608,7 @@ bool Optimizer::PoseOptimizationWithLine(Frame *pFrame)
     // definitions
     Matrix4d DT, DT_;
     Matrix6d DT_cov;
-    double   err = numeric_limits<double>::max(), e_prev;
+    double   err = numeric_limits<double>::max();
     err = -1.0;
 
     // set init pose (depending on the use of prior information or not, and on the goodness of previous solution)
@@ -617,9 +617,9 @@ bool Optimizer::PoseOptimizationWithLine(Frame *pFrame)
         DT     = Converter::toMatrix4d(pFrame->mTcw) * Converter::toInvMatrix4d(pFrame->mTcw_prev);
         // DT     = expmap_se3(logmap_se3( inverse_se3( pFrame->DT ) )); //pFrame->DT;
         DT_cov = pFrame->DT_cov;
-        e_prev = pFrame->err_norm;
-        if( !isGoodSolution(DT,DT_cov,e_prev) )
-            DT = Matrix4d::Identity();
+//        double e_prev = pFrame->err_norm;
+//        if( !isGoodSolution(DT,DT_cov,e_prev) )
+//            DT = Matrix4d::Identity();
     }
     else
         DT = Matrix4d::Identity();
@@ -654,10 +654,46 @@ bool Optimizer::PoseOptimizationWithLine(Frame *pFrame)
             pFrame->mv3DlineInPrevFrame[i] = make_pair(sP_prevframe, eP_prevframe);
         }
     }
+
     // optimization mode
     int mode = 0;   // GN - GNR - LM
 
     // solver
+    if(true) {
+        DT_ = DT;
+        gaussNewtonOptimization(DT_,DT_cov,err,Config::maxItersRef(), pFrame);
+        removeOutliers(DT_, pFrame);
+        DT_ = DT;                                          // !!! DT, not DT_
+        gaussNewtonOptimization(DT_,DT_cov,err,Config::maxItersRef(), pFrame);
+        removeOutliers(DT_, pFrame);
+        DT_ = DT;
+        gaussNewtonOptimization(DT_,DT_cov,err,Config::maxItersRef(), pFrame);
+        removeOutliers(DT_, pFrame);
+        DT_ = DT;
+//        gaussNewtonOptimizationRobust(DT_,DT_cov,err,Config::maxItersRef(), pFrame);
+//        removeOutliers(DT_, pFrame);
+//        DT_ = DT;
+        gaussNewtonOptimization(DT_,DT_cov,err,Config::maxItersRef(), pFrame);
+        removeOutliers(DT_, pFrame);
+
+        DT = DT_;
+
+        isGoodSolution(DT,DT_cov,err);
+        pFrame->DT       =  expmap_se3(logmap_se3( inverse_se3( DT ) ));
+        pFrame->DT_cov   = DT_cov;
+        Matrix4d Twf = Converter::toInvMatrix4d(pFrame->mTcw_prev);         // T^w_lastframe
+        Matrix4d Twc = expmap_se3(logmap_se3(Twf * pFrame->DT));                                    // T^w_currentframe = T^w_lastframe * T^last_current
+        cv::Mat Tcw = Converter::toInvCvMat(Twc);
+        pFrame->SetPose(Tcw);
+        pFrame->err_norm = err;
+//        pFrame->Tfw      = expmap_se3(logmap_se3( pFrame->Tfw * pFrame->DT ));
+//        pFrame->Tfw_cov  = unccomp_se3( pFrame->Tfw, pFrame->Tfw_cov, DT_cov );
+        SelfAdjointEigenSolver<Matrix6d> eigensolver(DT_cov);
+        pFrame->DT_cov_eig = eigensolver.eigenvalues();
+        return true;
+    }
+    else {
+
     if( pFrame->n_inliers >= Config::minFeatures() )
     {
         // optimize
@@ -673,29 +709,36 @@ bool Optimizer::PoseOptimizationWithLine(Frame *pFrame)
             // refine without outliers
             if( pFrame->n_inliers >= Config::minFeatures() )
             {
-                if( mode == 0 ) gaussNewtonOptimization(DT,DT_cov,err,Config::maxItersRef(), pFrame);
+                if( mode == 0 )
+                {
+                    gaussNewtonOptimization(DT,DT_cov,err,Config::maxItersRef(), pFrame);
+                    removeOutliers(DT, pFrame);                                             // !!! DT, not DT_
+                    gaussNewtonOptimization(DT,DT_cov,err,Config::maxItersRef(), pFrame);
+                    removeOutliers(DT, pFrame);
+                    gaussNewtonOptimizationRobust(DT,DT_cov,err,Config::maxItersRef(), pFrame);
+                    removeOutliers(DT, pFrame);
+                    gaussNewtonOptimization(DT,DT_cov,err,Config::maxItersRef(), pFrame);
+                }
                 else if( mode == 1 ) gaussNewtonOptimizationRobust(DT,DT_cov,err,Config::maxItersRef(), pFrame);
                 else if( mode == 2 ) levenbergMarquardtOptimization(DT,DT_cov,err,Config::maxItersRef(), pFrame);
             }
             else
             {
                 DT     = Matrix4d::Identity();
-                cout << "not enough inliers for next optimization (after optimization&removal)" << endl;
+                cout << "n_inliers:" << pFrame->n_inliers << ", not enough inliers for next optimization (after optimization&removal)" << endl;
             }
         }
         else
         {
             cout << "optimization didn't converge, perform optimizationRobust" << endl;
             gaussNewtonOptimizationRobust(DT,DT_cov,err,Config::maxItersRef(), pFrame);
-            //DT     = Matrix4d::Identity();
         }
     }
     else
     {
-        DT     = Matrix4d::Identity(); // DT     = Converter::toMatrix4d(pFrame->mTcw);
-        cout << "not enough inliers (before optimization)" << endl;
+        // DT     = Matrix4d::Identity(); // DT     = Converter::toMatrix4d(pFrame->mTcw);
+        cout << "n_inliers:" << pFrame->n_inliers << ", not enough inliers (before optimization)" << endl;
     }
-
 
     // set estimated pose
     if( isGoodSolution(DT,DT_cov,err) && DT != Matrix4d::Identity() )
@@ -726,6 +769,8 @@ bool Optimizer::PoseOptimizationWithLine(Frame *pFrame)
 //        pFrame->Tfw_cov  = pFrame->Tfw_cov;
         pFrame->DT_cov_eig = Vector6d::Zero();
         return false;
+    }
+
     }
 }
 

@@ -40,21 +40,26 @@ endif()
 
 find_package(Eigen3 3.1.0 REQUIRED)
 find_package(Pangolin REQUIRED)
+find_package(Boost COMPONENTS system)
 
 include_directories(
 ${PROJECT_SOURCE_DIR}
 ${PROJECT_SOURCE_DIR}/../../../
 ${PROJECT_SOURCE_DIR}/../../../include
+${PROJECT_SOURCE_DIR}/../../../Thirdparty/line_descriptor/include/
 ${Pangolin_INCLUDE_DIRS}
+${Boost_INCLUDE_DIRS}
 )
 
 set(LIBS 
 ${OpenCV_LIBS} 
 ${EIGEN3_LIBS}
 ${Pangolin_LIBRARIES}
+${Boost_LIBRARIES}
 ${PROJECT_SOURCE_DIR}/../../../Thirdparty/DBoW2/lib/libDBoW2.so
 ${PROJECT_SOURCE_DIR}/../../../Thirdparty/g2o/lib/libg2o.so
-${PROJECT_SOURCE_DIR}/../../../lib/libORB_SLAM2.so
+${PROJECT_SOURCE_DIR}/../../../Thirdparty/line_descriptor/lib/liblinedesc.so
+${PROJECT_SOURCE_DIR}/../../../lib/libORB_Line_SLAM2.so
 )
 
 # Node for monocular camera
@@ -92,6 +97,15 @@ src/ros_rgbd.cc
 )
 
 target_link_libraries(RGBD
+${LIBS}
+)
+
+# Node for compressed stereo images
+rosbuild_add_executable(Stereo_compressed
+src/ros_stereo_compressed.cc
+)
+
+target_link_libraries(Stereo_compressed
 ${LIBS}
 )
 

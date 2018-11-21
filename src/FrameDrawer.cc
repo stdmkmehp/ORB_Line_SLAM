@@ -131,8 +131,8 @@ cv::Mat FrameDrawer::DrawFrame()
         for(int i=0; i<nl; ++i)
         {
             // FIXME : lines to draw
-            if(true)
-            // if(vbVO_l[i] || vbMap_l[i])
+            if(vbVO_l[i] || vbMap_l[i])
+            // if(true)
             {
                 cv::Point2f sp, ep;
                 sp.x = int(vCurrentKeys_Line[i].startPointX);
@@ -143,13 +143,13 @@ cv::Mat FrameDrawer::DrawFrame()
                     cv::line(im, sp, ep, cv::Scalar(0,0,255), 1.5);
                     ++mnTracked_l;
                 }
-                else if(vbVO_l[i]) {
-                    cv::line(im, sp, ep, cv::Scalar(255,255,0), 1.5);
-                    ++mnTrackedVO_l;
-                }
                 else {
                     cv::line(im, sp, ep, cv::Scalar(255,0,255), 1.5);
+                    ++mnTrackedVO_l;
                 }
+//                else {
+//                    cv::line(im, sp, ep, cv::Scalar(0,255,255), 1.5);
+//                }
             }
         }
     }

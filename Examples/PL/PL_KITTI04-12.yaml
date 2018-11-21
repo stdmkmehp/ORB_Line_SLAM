@@ -15,8 +15,8 @@ Camera.k2: 0.0
 Camera.p1: 0.0
 Camera.p2: 0.0
 
-Camera.width: 1241
-Camera.height: 376
+Camera.width: 1226
+Camera.height: 370
 
 # Camera frames per second 
 Camera.fps: 10.0
@@ -84,14 +84,14 @@ lr_in_parallel     : 0      # 1 if detecting and matching features in parallel		
 pl_in_parallel     : 0      # 1 if detecting points and line segments in parallel	1->0
 best_lr_matches    : 1      # 1 if double-checking the matches between the two images
 adaptative_fast    : 1      # 1 if using adaptative fast_threshold
-use_motion_model   : 0     # 1 if using constant motion model
+use_motion_model   : 1     # 1 if using constant motion model
 
 # Tracking parameters
 # -----------------------------------------------------------------------------------------------------
 # Point features
-max_dist_epip     : 1.0        # max. epipolar distance in pixels
+max_dist_epip     : 0.0        # max. epipolar distance in pixels
 min_disp          : 1.0        # min. disparity (avoid points in the infinite)
-min_ratio_12_p    : 0.9       # min. ratio between the first and second best matches
+min_ratio_12_p    : 0.75       # min. ratio between the first and second best matches
 
 # Line segment features
 line_sim_th       : 0.75       # threshold for cosine similarity
@@ -99,12 +99,12 @@ stereo_overlap_th : 0.75
 f2f_overlap_th    : 0.75
 min_line_length   : 0.025       # min. line length (relative to img size)
 line_horiz_th     : 0.1        # parameter to avoid horizontal lines (pixels)
-min_ratio_12_l    : 0.9       # parameter to avoid outliers in line matching
+min_ratio_12_l    : 0.75       # parameter to avoid outliers in line matching
 ls_min_disp_ratio : 0.7        # min ratio between min(disp)/max(disp) for a LS
 
 # Adaptative FAST parameters
-fast_min_th       : 5          # min. value for FAST threshold
-fast_max_th       : 50         # max. value for FAST threshold
+fast_min_th       : 7          # min. value for FAST threshold
+fast_max_th       : 30         # max. value for FAST threshold
 fast_inc_th       : 5          # base increment for the FAST threshold
 fast_feat_th      : 50         # base number of features to increase/decrease FAST threshold
 fast_err_th       : 0.5        # threshold for the optimization error
@@ -117,11 +117,11 @@ max_iters        : 5           # max. number of iterations in the first stage of
 max_iters_ref    : 10          # max. number of iterations in the refinement stage			10->20
 min_error        : 1e-7        # min. error to stop the optimization
 min_error_change : 1e-7        # min. error change to stop the optimization
-inlier_k         : 4.0         # factor to discard outliers before the refinement stage
+inlier_k         : 2         # factor to discard outliers before the refinement stage 4->1.2
 
 # Feature detection parameters
 # -----------------------------------------------------------------------------------------------------
-matching_strategy : 3
+matching_strategy : 0
 matching_s_ws     : 10
 matching_f2f_ws   : 3
 
@@ -135,7 +135,7 @@ orb_score        : 1            # 0 - HARRIS  |  1 - FAST
 orb_patch_size   : 31
 orb_fast_th      : 20           # default FAST threshold
 # LSD parameters
-lsd_nfeatures    : 300          # set to 0 if keeping all lines					300->1000
+lsd_nfeatures    : 500          # set to 0 if keeping all lines 300->1000
 lsd_refine       : 0
 lsd_scale        : 1.2
 lsd_sigma_scale  : 0.6

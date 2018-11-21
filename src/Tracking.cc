@@ -550,7 +550,7 @@ void Tracking::Track()
 
 void Tracking::StereoInitialization()
 {
-    if(mCurrentFrame.N>500 && (!Config::hasLines() || mCurrentFrame.N_l>100))
+    if(mCurrentFrame.N>500)// && (!Config::hasLines() || mCurrentFrame.N_l>100))
     {
         // Set Frame pose to the origin
         mCurrentFrame.SetPose(cv::Mat::eye(4,4,CV_32F));
@@ -1014,7 +1014,8 @@ void Tracking::UpdateLastFrame()
 
     mLastFrame.SetPose(Tlr*pRef->GetPose());
 
-    if(mnLastKeyFrameId==mLastFrame.mnId || mSensor==System::MONOCULAR || !mbOnlyTracking)
+    if(mnLastKeyFrameId==mLastFrame.mnId || mSensor==System::MONOCULAR)
+//    if(mnLastKeyFrameId==mLastFrame.mnId || mSensor==System::MONOCULAR || !mbOnlyTracking)
         return;
 
     // Create "visual odometry" MapPoints
@@ -1238,29 +1239,14 @@ bool Tracking::TrackWithMotionModelWithLine()
     match(mLastFrame.mDescriptors_Line, mCurrentFrame.mDescriptors_Line, Config::minRatio12L(), matches_12);
 
     const double deltaAngle = M_PI/8.0;
-    const double deltaWidth = Config::imgWidth()*0.2;
-    const double deltaHeight = Config::imgHeight()*0.2;
+    const double deltaWidth = Config::imgWidth()*0.1;
+    const double deltaHeight = Config::imgHeight()*0.1;
     mCurrentFrame.n_inliers_ls = 0;
     const int nmatches_12 = matches_12.size();
     for (int i1 = 0; i1 < nmatches_12; ++i1) {
         if(!mLastFrame.mvpMapLines[i1]) continue;
         const int i2 = matches_12[i1];
         if (i2 < 0) continue;
-
-//        Eigen::Vector3d sp3D = mLastFrame.backProjection(
-//                    mLastFrame.mvKeysUn_Line[i1].startPointX,
-//                    mLastFrame.mvKeysUn_Line[i1].startPointY,
-//                    mLastFrame.mvDisparity_l[i1].first);
-//        Eigen::Vector3d ep3D = mLastFrame.backProjection(
-//                    mLastFrame.mvKeysUn_Line[i1].endPointX,
-//                    mLastFrame.mvKeysUn_Line[i1].endPointY,
-//                    mLastFrame.mvDisparity_l[i1].second);
-
-//        MapLine* pNewML = new MapLine(sp3D,ep3D,mpMap,&mLastFrame,i1);
-
-//        mLastFrame.mvpMapLines[i1]=pNewML;
-
-        // if(mLastFrame.mvbOutlier_Line[i1]) continue;
 
         // check for orientation and position in image
         if(true) {
@@ -1406,8 +1392,9 @@ bool Tracking::TrackWithMotionModelWithLine()
         return false;
     }
 
-    // cout<<"[Debug] In TrackWithMotionModelWithLine(), n_inliers_pt:"<<mCurrentFrame.n_inliers_pt<<" ,n_inliers_ls:"<<mCurrentFrame.n_inliers_ls<<endl;
     mCurrentFrame.n_inliers = mCurrentFrame.n_inliers_ls + mCurrentFrame.n_inliers_pt;
+    int nls = mCurrentFrame.n_inliers_ls;
+    int npt = mCurrentFrame.n_inliers_pt;
 
     // Optimizer::PoseOptimization(&mCurrentFrame); cout<<"PoseOptimization without Line"<<endl;
     if(!Config::hasLines()) mCurrentFrame.mvpMapLines.clear();
@@ -1457,7 +1444,9 @@ bool Tracking::TrackWithMotionModelWithLine()
                 nmatchesMap_l++;
         }
     }
-    // cout<<"[Debug] In TrackWithMotionModelWithLine(), After optimization nmatchesMap_p:"<<nmatchesMap_p<<", nmatchesMap_l:"<<nmatchesMap_l<<endl;
+    cout<<"[Debug] Frame ID:"<<mCurrentFrame.mnId<<endl;
+    cout<<"[Debug] In TrackWithMotionModelWithLine(), After optimization nmatchesMap_p:"<<nmatchesMap_p<<", nmatchesMap_l:"<<nmatchesMap_l<<endl;
+    cout<<"\t Res.:"<<mCurrentFrame.err_norm<<", \tn_inliers_pt:"<<npt<<"("<<mCurrentFrame.n_inliers_pt<<"), \tn_inliers_ls:"<<nls<<"("<<mCurrentFrame.n_inliers_ls<<")"<<endl;
     if(mbOnlyTracking)
     {
         mbVO = nmatchesMap_p<10;
@@ -1479,6 +1468,8 @@ bool Tracking::TrackLocalMap()
 
     mCurrentFrame.SetprevInformation(mLastFrame.mTcw, mLastFrame.DT_cov, mLastFrame.err_norm);      // FIXME
 
+    int nls = mCurrentFrame.n_inliers_ls;
+    int npt = mCurrentFrame.n_inliers_pt;
     // Optimize Pose
     // cout<<"Before TrackLocalMap optimization, pose is "<<endl<<mCurrentFrame.mTcw<<endl;
     // Optimizer::PoseOptimization(&mCurrentFrame);
@@ -1486,13 +1477,6 @@ bool Tracking::TrackLocalMap()
     bool bOpL = true;
     bOpL = Optimizer::PoseOptimizationWithLine(&mCurrentFrame); // cout<<"TrackLocalMap's PoseOptimization with Line"<<endl;
     // cout<<"After TrackLocalMap optimizationWithLine, pose is "<<endl<<mCurrentFrame.mTcw<<endl;
-    if(!bOpL)
-    {
-        fill(mCurrentFrame.mvbOutlier.begin(),mCurrentFrame.mvbOutlier.end(),false);
-        fill(mCurrentFrame.mvbOutlier_Line.begin(),mCurrentFrame.mvbOutlier_Line.end(),false);
-        cout<<"[Debug] Calling Optimizer::PoseOptimization(), mCurrentFrame.mnId:"<<mCurrentFrame.mnId<<endl;
-        Optimizer::PoseOptimization(&mCurrentFrame);
-    }
 
     mnMatchesInliers = 0;
     // Update MapPoints Statistics
@@ -1500,7 +1484,7 @@ bool Tracking::TrackLocalMap()
     {
         if(mCurrentFrame.mvpMapPoints[i])
         {
-            if(!mCurrentFrame.mvbOutlier[i])
+            if(!mCurrentFrame.mvbOutlier[i]&&bOpL)
             {
                 mCurrentFrame.mvpMapPoints[i]->IncreaseFound();
                 if(!mbOnlyTracking)
@@ -1522,7 +1506,7 @@ bool Tracking::TrackLocalMap()
     {
         if(mCurrentFrame.mvpMapLines[i])
         {
-            if(!mCurrentFrame.mvbOutlier_Line[i])
+            if(!mCurrentFrame.mvbOutlier_Line[i]&&bOpL)
             {
                 mCurrentFrame.mvpMapLines[i]->IncreaseFound();
                 if(!mbOnlyTracking)
@@ -1539,10 +1523,13 @@ bool Tracking::TrackLocalMap()
         }
     }
 
-    // cout<<"[Debug] In TrackLocalMap(), After optimization, mnMatchesInliers:"<<mnMatchesInliers<<", mnMatchesInliers_l:"<<mnMatchesInliers_l<<endl;
+    cout<<"[Debug] In TrackLocalMap(), After optimization, mnMatchesInliers:"<<mnMatchesInliers<<", mnMatchesInliers_l:"<<mnMatchesInliers_l<<endl;
+    cout<<"\t Res.:"<<mCurrentFrame.err_norm<<", \tn_inliers_pt:"<<npt<<"("<<mCurrentFrame.n_inliers_pt<<"), \tn_inliers_ls:"<<nls<<"("<<mCurrentFrame.n_inliers_ls<<")"<<endl<<endl;
 
     // Decide if the tracking was succesful
     // More restrictive if there was a relocalization recently
+    if(!bOpL)
+        return false;
 
     if(mCurrentFrame.mnId<mnLastRelocFrameId+mMaxFrames && mnMatchesInliers<50)
         return false;
@@ -1617,16 +1604,19 @@ bool Tracking::NeedNewKeyFrame()
     }
 
     bool bNeedToInsertClose = (nTrackedClose<100) && (nNonTrackedClose>70);
-    bool bNeedToInsertClose_l = (nTrackedClose_l<10) && (nNonTrackedClose_l>100);
+    bool bNeedToInsertClose_l = (nTrackedClose_l<20) && (nNonTrackedClose_l>100);
 
     // Thresholds
     float thRefRatio = 0.75f;
+    float thRefRatio_l = 0.75f;
     if(nKFs<2)
+    {
         thRefRatio = 0.4f;
+        thRefRatio_l = 0.4f;
+    }
 
     if(mSensor==System::MONOCULAR)
         thRefRatio = 0.9f;
-    float thRefRatio_l = 0.4f;
 
     // Condition 1a: More than "MaxFrames" have passed from last keyframe insertion
     const bool c1a = mCurrentFrame.mnId>=mnLastKeyFrameId+mMaxFrames;
@@ -1644,8 +1634,8 @@ bool Tracking::NeedNewKeyFrame()
 //        cout<<mnMatchesInliers_l<<" "<<nRefMatches_l<<" "<<bNeedToInsertClose_l<<endl;
 //    }
 
-    if((c1a||c1b||c1c)&&c2)
-    // if((c1a||c1b||c1c||c1c_l)&&(c2||c2_l))
+    // if((c1a||c1b||c1c)&&c2)
+    if((c1a||c1b||c1c||c1c_l)&&(c2||c2_l))
     {
         // If the mapping accepts keyframes, insert keyframe.
         // Otherwise send a signal to interrupt BA
@@ -1885,7 +1875,7 @@ void Tracking::SearchLocalPointsAndLines()
         // If the camera has been relocalised recently, perform a coarser search
         if(mCurrentFrame.mnId<mnLastRelocFrameId+2)
             th=5;
-        mCurrentFrame.n_inliers_pt = matcher.SearchByProjection(mCurrentFrame,mvpLocalMapPoints,th);
+        matcher.SearchByProjection(mCurrentFrame,mvpLocalMapPoints,th);
     }
 
 
@@ -1917,19 +1907,20 @@ void Tracking::SearchLocalPointsAndLines()
         match(mvpLocalMapLines_InFrustum,mCurrentFrame,Config::minRatio12L(), matches_12);
     }
 
-    fill(mCurrentFrame.mvpMapLines.begin(),mCurrentFrame.mvpMapLines.end(),static_cast<MapLine*>(NULL));
-    mCurrentFrame.n_inliers_ls = 0;
     // const double deltaAngle = M_PI/50.0;
-    const double deltaWidth = Config::imgWidth()*0.2;
-    const double deltaHeight = Config::imgHeight()*0.2;
+    const double deltaWidth = Config::imgWidth()*0.1;
+    const double deltaHeight = Config::imgHeight()*0.1;
     for (int i1 = 0, nmatches_12 = matches_12.size(); i1 < nmatches_12; ++i1) {                // remove maplines that do not match with orientation and position in image
         int i2 = matches_12[i1];
         if (i2 < 0) continue;
+        if(mCurrentFrame.mvpMapLines[i2])
+            if(mCurrentFrame.mvpMapLines[i2]->Observations()>0)
+                continue;
 
         MapLine* pML = mvpLocalMapLines_InFrustum[i1];
 
         // check for orientation and position in image
-        if(false) {
+        if(true) {
             // check for orientation
 //            double theta = mCurrentFrame.mvKeysUn_Line[i2].angle - pML->mnTrackangle;
 //            if(theta<-M_PI) theta+=2*M_PI;
@@ -1956,8 +1947,14 @@ void Tracking::SearchLocalPointsAndLines()
         }
 
         mCurrentFrame.mvpMapLines[i2] = pML;
-        ++mCurrentFrame.n_inliers_ls;
     }
+
+    mCurrentFrame.n_inliers_pt = 0;
+    for(auto it=mCurrentFrame.mvpMapPoints.begin(),itend=mCurrentFrame.mvpMapPoints.end(); it!=itend; ++it)
+        if(*it) ++mCurrentFrame.n_inliers_pt;
+    mCurrentFrame.n_inliers_ls = 0;
+    for(auto it=mCurrentFrame.mvpMapLines.begin(),itend=mCurrentFrame.mvpMapLines.end(); it!=itend; ++it)
+        if(*it) ++mCurrentFrame.n_inliers_ls;
 
     mCurrentFrame.n_inliers = mCurrentFrame.n_inliers_ls + mCurrentFrame.n_inliers_pt;
 }

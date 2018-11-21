@@ -128,10 +128,13 @@ Matrix4d expmap_se3(Vector6d x){
     w = x.tail(3);
     t = x.head(3);
     double theta = w.norm();
-    if( theta < 0.000001 )
-        R = I;
+    Matrix3d Omega = skew(w);
+    if( theta < 0.00001 ) {
+        R = I + Omega + Omega*Omega;
+        t = R * t;
+    }
     else{
-        s = skew(w)/theta;
+        s = Omega/theta;
         R = I + s * sin(theta) + s * s * (1.0f-cos(theta));
         V = I + s * (1.0f - cos(theta)) / theta + s * s * (theta - sin(theta)) / theta;
         t = V * t;
@@ -141,6 +144,13 @@ Matrix4d expmap_se3(Vector6d x){
 }
 
 Vector6d logmap_se3(Matrix4d T){
+    g2o::SE3Quat se3toMatrix(T.block(0,0,3,3),T.block(0,3,3,1));
+    Vector6d tmp = se3toMatrix.log();
+    Vector6d se3;
+    se3.head(3) = tmp.tail(3);
+    se3.tail(3) = tmp.head(3);
+    return se3;
+
     Matrix3d R, Id3 = Matrix3d::Identity();
     Vector3d Vt, t, w;
     Matrix3d V = Matrix3d::Identity(), w_hat = Matrix3d::Zero();
@@ -159,7 +169,7 @@ Vector6d logmap_se3(Matrix4d T){
     else if (sine < -1.f)
         sine = -1.f;
     double theta  = acos(cosine);
-    if( theta > 0.000001 ){
+    if( theta > 0.00001 ){
         w_hat = theta*(R-R.transpose())/(2.f*sine);
         w = skewcoords(w_hat);
         Matrix3d s;

@@ -31,6 +31,10 @@
 using namespace cv;
 using namespace line_descriptor;
 
+#include "Thirdparty/g2o/g2o/types/se3_ops.h"
+#include "Thirdparty/g2o/g2o/types/se3quat.h"
+
+
 #include <vector>
 using namespace std;
 
