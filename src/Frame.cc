@@ -43,11 +43,12 @@ Frame::Frame(const Frame &frame)
      mbf(frame.mbf), mb(frame.mb), mThDepth(frame.mThDepth), N(frame.N), N_l(frame.N_l),
      mvKeys(frame.mvKeys), mvKeysRight(frame.mvKeysRight), mvKeysUn(frame.mvKeysUn),
      mvKeys_Line(frame.mvKeys_Line), mvKeysRight_Line(frame.mvKeysRight_Line), mvKeysUn_Line(frame.mvKeysUn_Line),
-     mvuRight(frame.mvuRight), mvDepth(frame.mvDepth), mBowVec(frame.mBowVec), mFeatVec(frame.mFeatVec),
+     mvuRight(frame.mvuRight), mvDepth(frame.mvDepth), mvDisparity_l(frame.mvDisparity_l), mvle_l(frame.mvle_l),
+     mBowVec(frame.mBowVec), mFeatVec(frame.mFeatVec),
      mDescriptors(frame.mDescriptors.clone()), mDescriptorsRight(frame.mDescriptorsRight.clone()),
      mDescriptors_Line(frame.mDescriptors_Line.clone()), mDescriptorsRight_Line(frame.mDescriptorsRight_Line.clone()),
-     mvDisparity_l(frame.mvDisparity_l), mvle_l(frame.mvle_l), mvpMapLines(frame.mvpMapLines), mvbOutlier_Line(frame.mvbOutlier_Line),
-     mvpMapPoints(frame.mvpMapPoints), mvbOutlier(frame.mvbOutlier), mnId(frame.mnId),
+     mvpMapPoints(frame.mvpMapPoints), mvpMapLines(frame.mvpMapLines),
+     mvbOutlier(frame.mvbOutlier), mvbOutlier_Line(frame.mvbOutlier_Line), mnId(frame.mnId),
      mpReferenceKF(frame.mpReferenceKF), mnScaleLevels(frame.mnScaleLevels),
      mfScaleFactor(frame.mfScaleFactor), mfLogScaleFactor(frame.mfLogScaleFactor),
      mvScaleFactors(frame.mvScaleFactors), mvInvScaleFactors(frame.mvInvScaleFactors),
@@ -131,6 +132,7 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
     AssignFeaturesToGrid();
 }
 
+// Constructor for stereo cameras with lines
 Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeStamp, 
     ORBextractor* extractorLeft, ORBextractor* extractorRight, 
     Lineextractor* LineextractorLeft, Lineextractor* LineextractorRight,
@@ -201,9 +203,8 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
     if(Config::hasLines())
     {
         ComputeStereoMatches_Lines();           //use mvKeys_Line
-
         N_l = mvKeys_Line.size();   // update N_l
-        UndistortKeyLines();        //set mvKeysUn_Line
+        UndistortKeyLines();
     }
 
     mvpMapPoints = vector<MapPoint*>(N,static_cast<MapPoint*>(NULL));    
@@ -630,6 +631,8 @@ void Frame::UndistortKeyLines()
         return;
     }
 
+    N_l = mvKeys_Line.size();   // update N_l
+
     // Fill matrix with points
     cv::Mat mat_s(N_l,2,CV_32F);
     cv::Mat mat_e(N_l,2,CV_32F);
@@ -914,7 +917,7 @@ void Frame::ComputeStereoMatches_Lines(bool initial)
 
     // bucle around lmatches
     Mat mDescriptors_Line_aux;
-    int ls_idx = 0;
+    // int ls_idx = 0;
     // stereo_ls.clear();
     for (unsigned int i1 = 0; i1 < matches_12.size(); ++i1) {
         const int i2 = matches_12[i1];

@@ -26,7 +26,7 @@
 #include <algorithm>
 #include <stdexcept>
 
-#include "lineIterator.h"
+#include "LineIterator.h"
 
 namespace ORB_SLAM2 {
 

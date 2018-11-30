@@ -34,13 +34,14 @@
 #include "ORBVocabulary.h"
 #include"KeyFrameDatabase.h"
 #include"ORBextractor.h"
+#include"LineExtractor.h"
 #include "Initializer.h"
 #include "MapDrawer.h"
 #include "System.h"
 
 #include <mutex>
 
-#include "config.h"
+#include "Config.h"
 
 namespace ORB_SLAM2
 {
@@ -98,6 +99,8 @@ public:
     Frame mCurrentFrame;
     cv::Mat mImGray;
     cv::Mat mImGray_last;
+    int mImWidth;
+    int mImHeight;
 
     // Initialization Variables (Monocular)
     std::vector<int> mvIniLastMatches;

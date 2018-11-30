@@ -18,8 +18,8 @@
 * along with ORB-SLAM2. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef MAPPOINT_H
-#define MAPPOINT_H
+#ifndef MAPLINE_H
+#define MAPLINE_H
 
 #include"KeyFrame.h"
 #include"Frame.h"
@@ -27,7 +27,13 @@
 
 #include<opencv2/core/core.hpp>
 #include<mutex>
+#include <map>
 
+#include <eigen3/Eigen/Core>
+using namespace Eigen;
+
+typedef Eigen::Matrix<double,6,6> Matrix6d;
+typedef Eigen::Matrix<double,6,1> Vector6d;
 
 namespace ORB_SLAM2
 {
@@ -36,17 +42,15 @@ class KeyFrame;
 class Map;
 class Frame;
 
-
-class MapPoint
+class MapLine
 {
 public:
-    MapPoint(const cv::Mat &Pos, KeyFrame* pRefKF, Map* pMap);
-    MapPoint(const cv::Mat &Pos,  Map* pMap, Frame* pFrame, const int &idxF);
+    MapLine(const Eigen::Vector3d &sP, const Eigen::Vector3d &eP, KeyFrame* pRefKF, Map* pMap);
+    MapLine(const Eigen::Vector3d &sP, const Eigen::Vector3d &eP,  Map* pMap, Frame* pFrame, const int &idxF);
 
-    void SetWorldPos(const cv::Mat &Pos);
-    cv::Mat GetWorldPos();
+    void SetWorldPos(const Eigen::Vector3d &sP, const Eigen::Vector3d &eP);
+    Vector6d GetWorldPos();
 
-    cv::Mat GetNormal();
     KeyFrame* GetReferenceKeyFrame();
 
     std::map<KeyFrame*,size_t> GetObservations();
@@ -61,8 +65,8 @@ public:
     void SetBadFlag();
     bool isBad();
 
-    void Replace(MapPoint* pMP);    
-    MapPoint* GetReplaced();
+    void Replace(MapLine* pML);    
+    MapLine* GetReplaced();
 
     void IncreaseVisible(int n=1);
     void IncreaseFound(int n=1);
@@ -70,17 +74,11 @@ public:
     inline int GetFound(){
         return mnFound;
     }
-
     void ComputeDistinctiveDescriptors();
 
     cv::Mat GetDescriptor();
 
     void UpdateNormalAndDepth();
-
-    float GetMinDistanceInvariance();
-    float GetMaxDistanceInvariance();
-    int PredictScale(const float &currentDist, KeyFrame*pKF);
-    int PredictScale(const float &currentDist, Frame* pF);
 
 public:
     long unsigned int mnId;
@@ -89,40 +87,26 @@ public:
     long int mnFirstFrame;
     int nObs;
 
-    // Variables used by the tracking
-    float mTrackProjX;
-    float mTrackProjY;
-    float mTrackProjXR;
-    bool mbTrackInView;         // check isInFrustum
-    int mnTrackScaleLevel;
-    float mTrackViewCos;
-    long unsigned int mnTrackReferenceForFrame;         // When UpdateLocalKeyFrames(), ensure no redundant frames added in mvplocalframe
-    long unsigned int mnLastFrameSeen;                  // escape mappoints seen when checking isInFrustum
-
-    // Variables used by local mapping
-    long unsigned int mnBALocalForKF;
-    long unsigned int mnFuseCandidateForKF;
-
-    // Variables used by loop closing
-    long unsigned int mnLoopPointForKF;
-    long unsigned int mnCorrectedByKF;
-    long unsigned int mnCorrectedReference;    
-    cv::Mat mPosGBA;
-    long unsigned int mnBAGlobalForKF;
-
-
     static std::mutex mGlobalMutex;
+
+     // Position in absolute coordinates
+     Eigen::Vector3d mWorldPos_sP;
+     Eigen::Vector3d mWorldPos_eP;
+
+     // Tracking
+     bool mbTrackInView;
+     float mTrackProjsX;
+     float mTrackProjsY;
+     float mTrackProjeX;
+     float mTrackProjeY;
+     double mnTrackangle;
+     long unsigned int mnTrackReferenceForFrame;
+     long unsigned int mnLastFrameSeen;
 
 protected:    
 
-     // Position in absolute coordinates
-     cv::Mat mWorldPos;
-
      // Keyframes observing the point and associated index in keyframe
      std::map<KeyFrame*,size_t> mObservations;
-
-     // Mean viewing direction
-     cv::Mat mNormalVector;
 
      // Best descriptor to fast matching
      cv::Mat mDescriptor;
@@ -136,11 +120,7 @@ protected:
 
      // Bad flag (we do not currently erase MapPoint from memory)
      bool mbBad;
-     MapPoint* mpReplaced;
-
-     // Scale invariance distances
-     float mfMinDistance;
-     float mfMaxDistance;
+     MapLine* mpReplaced;
 
      Map* mpMap;
 
@@ -150,4 +130,4 @@ protected:
 
 } //namespace ORB_SLAM
 
-#endif // MAPPOINT_H
+#endif // MAPLINE_H

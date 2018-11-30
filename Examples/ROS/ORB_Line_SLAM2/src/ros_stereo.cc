@@ -50,12 +50,12 @@ public:
 
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "RGBD");
+    ros::init(argc, argv, "ORB_Line_SLAM2");
     ros::start();
 
     if(argc != 4)
     {
-        cerr << endl << "Usage: rosrun ORB_SLAM2 Stereo path_to_vocabulary path_to_settings do_rectify" << endl;
+        cerr << endl << "Usage: rosrun ORB_Line_SLAM2 Stereo path_to_vocabulary path_to_settings do_rectify" << endl;
         ros::shutdown();
         return 1;
     }    
@@ -109,8 +109,8 @@ int main(int argc, char **argv)
 
     ros::NodeHandle nh;
 
-    message_filters::Subscriber<sensor_msgs::Image> left_sub(nh, "/cam0/image_raw", 1);
-    message_filters::Subscriber<sensor_msgs::Image> right_sub(nh, "/cam1/image_raw", 1);
+    message_filters::Subscriber<sensor_msgs::Image> left_sub(nh, "/camera/left", 1);
+    message_filters::Subscriber<sensor_msgs::Image> right_sub(nh, "/camera/right", 1);
     typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::Image> sync_pol;
     message_filters::Synchronizer<sync_pol> sync(sync_pol(10), left_sub,right_sub);
     sync.registerCallback(boost::bind(&ImageGrabber::GrabStereo,&igb,_1,_2));
@@ -166,6 +166,7 @@ void ImageGrabber::GrabStereo(const sensor_msgs::ImageConstPtr& msgLeft,const se
     {
         mpSLAM->TrackStereo(cv_ptrLeft->image,cv_ptrRight->image,cv_ptrLeft->header.stamp.toSec());
     }
+    // cv::imwrite("/home/lab404/Pictures/imLeft.png",cv_ptrLeft->image);std::cout<<"saved img!"<<std::endl;
 
 }
 

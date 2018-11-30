@@ -502,7 +502,6 @@ void Optimizer::removeOutliers(Matrix4d DT, Frame *pFrame)
         }
         // estimate robust parameters
         double p_stdv, p_mean, inlier_th_p;
-        //FIXME(done) : pMP may be nullptr
         vector_mean_stdv_mad( res_p, p_mean, p_stdv );
         inlier_th_p = Config::inlierK() * p_stdv;
         // inlier_th_p = sqrt(7.815);
@@ -558,7 +557,7 @@ void Optimizer::removeOutliers(Matrix4d DT, Frame *pFrame)
                 Vector2d err_li;
                 err_li(0) = l_obs(0) * spl_proj(0) + l_obs(1) * spl_proj(1) + l_obs(2);
                 err_li(1) = l_obs(0) * epl_proj(0) + l_obs(1) * epl_proj(1) + l_obs(2);
-                res_l.push_back( err_li.norm() * sqrt(pFrame->mvInvLevelSigma2[pFrame->mvKeys_Line[i].octave]) );
+                res_l.push_back( err_li.norm() * sqrt(pFrame->mvInvLevelSigma2[pFrame->mvKeysUn_Line[i].octave]) );
                 //res_l.push_back( err_li.norm() );
                 res_l_idx.push_back(i);
             }
@@ -617,9 +616,9 @@ bool Optimizer::PoseOptimizationWithLine(Frame *pFrame)
         DT     = Converter::toMatrix4d(pFrame->mTcw) * Converter::toInvMatrix4d(pFrame->mTcw_prev);
         // DT     = expmap_se3(logmap_se3( inverse_se3( pFrame->DT ) )); //pFrame->DT;
         DT_cov = pFrame->DT_cov;
-//        double e_prev = pFrame->err_norm;
-//        if( !isGoodSolution(DT,DT_cov,e_prev) )
-//            DT = Matrix4d::Identity();
+        // double e_prev = pFrame->err_norm;
+        // if( !isGoodSolution(DT,DT_cov,e_prev) )
+        //     DT = Matrix4d::Identity();
     }
     else
         DT = Matrix4d::Identity();
@@ -666,13 +665,13 @@ bool Optimizer::PoseOptimizationWithLine(Frame *pFrame)
         DT_ = DT;                                          // !!! DT, not DT_
         gaussNewtonOptimization(DT_,DT_cov,err,Config::maxItersRef(), pFrame);
         removeOutliers(DT_, pFrame);
+//        DT_ = DT;
+//        gaussNewtonOptimization(DT_,DT_cov,err,Config::maxItersRef(), pFrame);
+//        removeOutliers(DT_, pFrame);
         DT_ = DT;
-        gaussNewtonOptimization(DT_,DT_cov,err,Config::maxItersRef(), pFrame);
+        gaussNewtonOptimizationRobust(DT_,DT_cov,err,Config::maxItersRef(), pFrame);
         removeOutliers(DT_, pFrame);
         DT_ = DT;
-//        gaussNewtonOptimizationRobust(DT_,DT_cov,err,Config::maxItersRef(), pFrame);
-//        removeOutliers(DT_, pFrame);
-//        DT_ = DT;
         gaussNewtonOptimization(DT_,DT_cov,err,Config::maxItersRef(), pFrame);
         removeOutliers(DT_, pFrame);
 
@@ -690,6 +689,7 @@ bool Optimizer::PoseOptimizationWithLine(Frame *pFrame)
 //        pFrame->Tfw_cov  = unccomp_se3( pFrame->Tfw, pFrame->Tfw_cov, DT_cov );
         SelfAdjointEigenSolver<Matrix6d> eigensolver(DT_cov);
         pFrame->DT_cov_eig = eigensolver.eigenvalues();
+
         return true;
     }
     else {
@@ -746,7 +746,6 @@ bool Optimizer::PoseOptimizationWithLine(Frame *pFrame)
         pFrame->DT       =  expmap_se3(logmap_se3( inverse_se3( DT ) ));
         pFrame->DT_cov   = DT_cov;
         Matrix4d Twf = Converter::toInvMatrix4d(pFrame->mTcw_prev);         // T^w_lastframe
-        Matrix4d Twc_init = Twf * pFrame->DT;
         Matrix4d Twc = expmap_se3(logmap_se3(Twf * pFrame->DT));                                    // T^w_currentframe = T^w_lastframe * T^last_current
         cv::Mat Tcw = Converter::toInvCvMat(Twc);
         pFrame->SetPose(Tcw);
@@ -802,7 +801,7 @@ void Optimizer::gaussNewtonOptimization(Matrix4d &DT, Matrix6d &DT_cov, double &
         DT  << DT * inverse_se3( expmap_se3(DT_inc) );
         // if the parameter change is small stop
         if( DT_inc.head(3).norm() < Config::minErrorChange() && DT_inc.tail(3).norm() < Config::minErrorChange()) {
-            cout << "[StVO] Small optimization solution variance" << endl;
+            // cout << "[StVO] Small optimization solution variance" << endl;
             break;
         }
         // update previous values
@@ -1061,7 +1060,7 @@ void Optimizer::optimizeFunctions(Matrix4d DT, Matrix6d &H, Vector6d &g, double 
             J_aux = ( Js_aux * ds + Je_aux * de ) / std::max(Config::homogTh(),err_i_norm);
 
             // define the residue
-            double r = err_i_norm * sqrt(pFrame->mvInvLevelSigma2[pFrame->mvKeys_Line[i].octave]);
+            double r = err_i_norm * sqrt(pFrame->mvInvLevelSigma2[pFrame->mvKeysUn_Line[i].octave]);
 
             // if employing robust cost function
             double w  = 1.0;
@@ -1369,7 +1368,7 @@ void Optimizer::optimizeFunctionsRobust(Matrix4d DT, Matrix6d &H, Vector6d &g, d
             // jacobian
             J_aux = ( Js_aux * ds + Je_aux * de ) / std::max(Config::homogTh(),err_i_norm);
             // define the residue
-            // double sqrt_s2 = sqrt(pFrame->mvInvLevelSigma2[pFrame->mvKeys_Line[i].octave])
+            // double sqrt_s2 = sqrt(pFrame->mvInvLevelSigma2[pFrame->mvKeysUn_Line[i].octave])
             double r = err_i_norm;
             // if employing robust cost function
             double w  = 1.0;

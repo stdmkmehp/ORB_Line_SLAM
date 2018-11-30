@@ -24,28 +24,27 @@
 #include<vector>
 
 #include "MapPoint.h"
+#include "MapLine.h"
 #include "Thirdparty/DBoW2/DBoW2/BowVector.h"
 #include "Thirdparty/DBoW2/DBoW2/FeatureVector.h"
 #include "ORBVocabulary.h"
 #include "KeyFrame.h"
 #include "ORBextractor.h"
+#include "LineExtractor.h"
 
 #include <opencv2/opencv.hpp>
 
 // #include <stereoFeatures.h>
 
-#include "config.h"
-#include "matching.h"
+#include "Config.h"
+#include "LineMatcher.h"
 #include "gridStructure.h"
-
 
 #include <eigen3/Eigen/Core>
 using namespace Eigen;
 
 typedef Eigen::Matrix<double,6,6> Matrix6d;
 typedef Eigen::Matrix<double,6,1> Vector6d;
-// typedef Eigen::Matrix<double,6,6> Eigen::Matrix6d;
-// typedef Eigen::Matrix<double,6,1> Eigen::Vector6d;
 
 namespace ORB_SLAM2
 {
@@ -128,9 +127,11 @@ public:
     // Backprojects a keypoint (if stereo/depth info available) into 3D world coordinates.
     cv::Mat UnprojectStereo(const int &i);
 
-
+    // backproject point[u,v] into 3D world coordinate
     Eigen::Vector3d backProjection( const double &u, const double &v, const double &disp );
+    // backproject 3D point(camera coodinate) into [u,v] image coordinate
     Eigen::Vector2d projection( const Eigen::Vector3d &P );
+    // overlap between obs lineSegment and proj lineSegment
     double lineSegmentOverlap(Vector2d spl_obs, Vector2d epl_obs, Vector2d spl_proj, Vector2d epl_proj);
 
 public:

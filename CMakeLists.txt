@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 2.8)
 project(ORB_Line_SLAM2)
 
-#set(CMAKE_BUILD_TYPE Debug)
 if(NOT CMAKE_BUILD_TYPE)
   SET(CMAKE_BUILD_TYPE Release)
 endif()

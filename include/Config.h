@@ -23,6 +23,7 @@
 #pragma once
 #include <string>
 #include <iostream>
+#include<opencv2/core/core.hpp>
 
 class Config
 {
@@ -33,11 +34,11 @@ public:
     ~Config();
 
     static void loadFromFile( const std::string &config_file );
-
     static Config& getInstance();
 
     static int&     imgWidth()  { return getInstance().img_width; }
     static int&     imgHeight()       { return getInstance().img_height; }
+    static void     setImgWidthHeight(int w, int h)  { getInstance().img_width = w; getInstance().img_height = h;}
 
     // Keyframe selection parameters (for SLAM, if any)
     static double&  minEntropyRatio()   { return getInstance().min_entropy_ratio; }
@@ -255,5 +256,7 @@ public:
     bool   has_refinement;
     bool   mutithread_slam;
 
+private:
+    //template<typename T> inline T loadSafe(const cv::FileStorage &fSettings, std::string param, T default_value = T());
 };
 

@@ -10,6 +10,7 @@ Examples/ROS/ORB_SLAM2/Mono
 Examples/ROS/ORB_SLAM2/MonoAR
 Examples/ROS/ORB_SLAM2/RGBD
 Examples/ROS/ORB_SLAM2/Stereo
+Examples/ROS/ORB_SLAM2/Stereo_compressed
 Examples/ROS/ORB_SLAM2/build/
 Examples/ROS/ORB_Line_SLAM2/CMakeLists.txt.user
 Examples/ROS/ORB_Line_SLAM2/Mono
@@ -22,6 +23,8 @@ Examples/Stereo/stereo_euroc
 Examples/Stereo/stereo_kitti
 KeyFrameTrajectory.txt
 KeyFrameTrajectory_TUM_Format.txt
+FrameTrajectory_TUM_Format.txt
+FrameTrajectory_KITTI_Format.txt
 CameraTrajectory.txt
 Thirdparty/DBoW2/build/
 Thirdparty/DBoW2/lib/

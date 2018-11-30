@@ -23,6 +23,7 @@
 
 #include "Tracking.h"
 #include "MapPoint.h"
+#include "MapLine.h"
 #include "Map.h"
 
 #include<opencv2/core/core.hpp>

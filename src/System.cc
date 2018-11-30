@@ -33,6 +33,7 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
                const bool bUseViewer):mSensor(sensor), mpViewer(static_cast<Viewer*>(NULL)), mbReset(false),mbActivateLocalizationMode(false),
         mbDeactivateLocalizationMode(false)
 {
+    cout << endl << "ORB_Line_SLAM based on ORB-SLAM2, Lab404, School of Automation, Southeast University." << endl;
     // Output welcome message
     cout << endl <<
     "ORB-SLAM2 Copyright (C) 2014-2016 Raul Mur-Artal, University of Zaragoza." << endl <<

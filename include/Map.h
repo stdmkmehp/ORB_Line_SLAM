@@ -22,6 +22,7 @@
 #define MAP_H
 
 #include "MapPoint.h"
+#include "MapLine.h"
 #include "KeyFrame.h"
 #include <set>
 
@@ -66,7 +67,7 @@ public:
 
     void clear();
 
-    vector<KeyFrame*> mvpKeyFrameOrigins;
+    std::vector<KeyFrame*> mvpKeyFrameOrigins;
 
     std::mutex mMutexMapUpdate;
 

@@ -114,13 +114,13 @@ cv::Mat FrameDrawer::DrawFrame()
                 if(vbMap[i])
                 {
                     cv::rectangle(im,pt1,pt2,cv::Scalar(0,255,0));
-                    cv::circle(im,vCurrentKeys[i].pt,2,cv::Scalar(0,255,0),-1);
+                    cv::circle(im,vCurrentKeys[i].pt,2,cv::Scalar(0,255,0),-1);         // Green
                     mnTracked++;
                 }
                 else // This is match to a "visual odometry" MapPoint created in the last frame
                 {
                     cv::rectangle(im,pt1,pt2,cv::Scalar(255,0,0));
-                    cv::circle(im,vCurrentKeys[i].pt,2,cv::Scalar(255,0,0),-1);
+                    cv::circle(im,vCurrentKeys[i].pt,2,cv::Scalar(255,0,0),-1);         // Blue
                     mnTrackedVO++;
                 }
             }
@@ -130,7 +130,6 @@ cv::Mat FrameDrawer::DrawFrame()
         const int nl = vCurrentKeys_Line.size();
         for(int i=0; i<nl; ++i)
         {
-            // FIXME : lines to draw
             if(vbVO_l[i] || vbMap_l[i])
             // if(true)
             {
@@ -140,15 +139,15 @@ cv::Mat FrameDrawer::DrawFrame()
                 ep.x = int(vCurrentKeys_Line[i].endPointX);
                 ep.y = int(vCurrentKeys_Line[i].endPointY);
                 if(vbMap_l[i]) {
-                    cv::line(im, sp, ep, cv::Scalar(0,0,255), 1.5);
+                    cv::line(im, sp, ep, cv::Scalar(0,0,255), 1.5);                     // Red
                     ++mnTracked_l;
                 }
                 else {
-                    cv::line(im, sp, ep, cv::Scalar(255,0,255), 1.5);
+                    cv::line(im, sp, ep, cv::Scalar(255,0,255), 1.5);                   // Magenta
                     ++mnTrackedVO_l;
                 }
 //                else {
-//                    cv::line(im, sp, ep, cv::Scalar(0,255,255), 1.5);
+//                    cv::line(im, sp, ep, cv::Scalar(0,255,255), 1.5);                 // Yellow
 //                }
             }
         }
@@ -177,16 +176,16 @@ void FrameDrawer::DrawTextInfo(cv::Mat &im, int nState, cv::Mat &imText)
         int nKFs = mpMap->KeyFramesInMap();
         int nMPs = mpMap->MapPointsInMap();
         int nMLs = mpMap->MapLinesInMap();
-        s << "Frame:" << mnId << ", KFs: " << nKFs << ", MPs: " << nMPs << ", Matches_p: " << mnTracked;
+        s << "Frame:" << mnId << ", KFs: " << nKFs << ", MPs/Matches: " << nMPs << "/" << mnTracked;
+        s << ", MLs/Matches: " << nMLs << "/" << mnTracked_l;
         if(mnTrackedVO>0)
-            s << ", + VO matches_p: " << mnTrackedVO;
-        s << ", MLs: " << nMLs << ", Matches_l: " << mnTracked_l;
+            s << ", +VO_MatchesP: " << mnTrackedVO;
         if(mnTrackedVO_l>0)
-            s << ", + VO matches_l: " << mnTrackedVO_l;
+            s << ", +VO_MatchesL: " << mnTrackedVO_l;
     }
     else if(nState==Tracking::LOST)
     {
-        s << " TRACK LOST. TRYING TO RELOCALIZE ";
+        s << "Frame:" << mnId << " TRACK LOST. TRYING TO RELOCALIZE ";
     }
     else if(nState==Tracking::SYSTEM_NOT_READY)
     {

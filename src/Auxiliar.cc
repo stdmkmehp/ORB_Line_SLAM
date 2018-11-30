@@ -150,7 +150,7 @@ Vector6d logmap_se3(Matrix4d T){
     se3.head(3) = tmp.tail(3);
     se3.tail(3) = tmp.head(3);
     return se3;
-
+    /*
     Matrix3d R, Id3 = Matrix3d::Identity();
     Vector3d Vt, t, w;
     Matrix3d V = Matrix3d::Identity(), w_hat = Matrix3d::Zero();
@@ -180,6 +180,7 @@ Vector6d logmap_se3(Matrix4d T){
     x.head(3) = t;
     x.tail(3) = w;
     return x;
+    */
 }
 
 Matrix6d adjoint_se3(Matrix4d T){

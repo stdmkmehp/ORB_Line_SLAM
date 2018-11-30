@@ -20,60 +20,52 @@
 **                                                                          **
 *****************************************************************************/
 
-#include "lineIterator.h"
+#pragma once
 
 //STL
-#include <cmath>
 #include <utility>
+#include <vector>
 
-//Implementation of Bresenham's line drawing Algorithm
-//Adapted from: https://rosettacode.org/wiki/Bitmap/Bresenham%27s_line_algorithm#C.2B.2B
+//OpenCV
+#include <opencv2/core.hpp>
+
+#include "gridStructure.h"
+#include "Frame.h"
+#include "MapPoint.h"
+#include "MapLine.h"
 
 namespace ORB_SLAM2 {
 
-LineIterator::LineIterator(const double x1_, const double y1_, const double x2_, const double y2_)
-    : x1(x1_), y1(y1_), x2(x2_), y2(y2_), steep(std::abs(y2_ - y1_) > std::abs(x2_ - x1_)) {
+class Frame;
+class MapPoint;
+class MapLine;
 
-    if (steep) {
-        std::swap(x1, y1);
-        std::swap(x2, y2);
-    }
+typedef std::pair<int, int> point_2d;
+typedef std::pair<point_2d, point_2d> line_2d;
 
-    if(x1 > x2) {
-        std::swap(x1, x2);
-        std::swap(y1, y2);
-    }
-
-    dx = x2 - x1;
-    dy = std::abs(y2 - y1);
-
-    error = dx / 2.0;
-    ystep = (y1 < y2) ? 1 : -1;
-
-    x = static_cast<int>(x1);
-    y = static_cast<int>(y1);
-
-    maxX = static_cast<int>(x2);
+inline double dot(const std::pair<double, double> &a, const std::pair<double, double> &b) {
+    return (a.first*b.first + a.second*b.second);
 }
 
-bool LineIterator::getNext(std::pair<int, int> &pixel) {
+inline void normalize(std::pair<double, double> &v) {
+    double magnitude = std::sqrt(dot(v, v));
 
-    if (x > maxX)
-        return false;
-
-    if (steep)
-        pixel = std::make_pair(y, x);
-    else
-        pixel = std::make_pair(x, y);
-
-    error -= dy;
-    if (error < 0) {
-        y += ystep;
-        error += dx;
-    }
-
-    x++;
-    return true;
+    v.first /= magnitude;
+    v.second /= magnitude;
 }
 
-} // namespace ORB_SLAM2
+int matchNNR(const cv::Mat &desc1, const cv::Mat &desc2, float nnr, std::vector<int> &matches_12);
+
+int match(const std::vector<MapLine*> &mvpLocalMapLines, Frame &CurrentFrame, float nnr, std::vector<int> &matches_12);
+
+int match(const cv::Mat &desc1, const cv::Mat &desc2, float nnr, std::vector<int> &matches_12);
+
+int distance(const cv::Mat &a, const cv::Mat &b);
+
+//Points
+int matchGrid(const std::vector<point_2d> &points1, const cv::Mat &desc1, const GridStructure &grid, const cv::Mat &desc2, const GridWindow &w, std::vector<int> &matches_12);
+
+//Lines
+int matchGrid(const std::vector<line_2d> &lines1, const cv::Mat &desc1, const GridStructure &grid, const cv::Mat &desc2, const std::vector<std::pair<double, double>> &directions2, const GridWindow &w, std::vector<int> &matches_12);
+
+} // namesapce ORB_SLAM2

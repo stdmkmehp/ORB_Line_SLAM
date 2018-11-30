@@ -20,7 +20,7 @@
 **                                                                          **
 *****************************************************************************/
 
-#include "matching.h"
+#include "LineMatcher.h"
 
 //STL
 #include <cmath>
@@ -35,7 +35,7 @@
 
 #include "gridStructure.h"
 
-#include "config.h"
+#include "Config.h"
 
 namespace ORB_SLAM2 {
 
@@ -51,7 +51,7 @@ int matchNNR(const cv::Mat &desc1, const cv::Mat &desc2, float nnr, std::vector<
     if (desc1.rows != matches_.size())
         throw std::runtime_error("[matchNNR] Different size for matches and descriptors!");
 
-    for (int idx = 0; idx < desc1.rows; ++idx) {
+    for (int idx = 0, nsize = desc1.rows; idx < nsize; ++idx) {
         if (matches_[idx][0].distance < matches_[idx][1].distance * nnr) {
             matches_12[idx] = matches_[idx][0].trainIdx;
             matches++;
@@ -88,7 +88,7 @@ int match(const std::vector<MapLine*> &vpLocalMapLines, Frame &CurrentFrame, flo
             matchNNR(desc2, desc1, nnr, matches_21);
         }
 
-        for (int i1 = 0; i1 < matches_12.size(); ++i1) {
+        for (int i1 = 0, nsize = matches_12.size(); i1 < nsize; ++i1) {
             int &i2 = matches_12[i1];
             if (i2 >= 0 && matches_21[i2] != i1) {
                 i2 = -1;
@@ -118,7 +118,7 @@ int match(const cv::Mat &desc1, const cv::Mat &desc2, float nnr, std::vector<int
             matchNNR(desc2, desc1, nnr, matches_21);
         }
 
-        for (int i1 = 0; i1 < matches_12.size(); ++i1) {
+        for (int i1 = 0, nsize = matches_12.size(); i1 < nsize; ++i1) {
             int &i2 = matches_12[i1];
             if (i2 >= 0 && matches_21[i2] != i1) {
                 i2 = -1;
@@ -165,7 +165,7 @@ int matchGrid(const std::vector<point_2d> &points1, const cv::Mat &desc1, const 
         distances.resize(desc2.rows, std::numeric_limits<int>::max());
     }
 
-    for (int i1 = 0; i1 < points1.size(); ++i1) {
+    for (int i1 = 0, nsize = points1.size(); i1 < nsize; ++i1) {
 
         best_d = std::numeric_limits<int>::max();
         best_d2 = std::numeric_limits<int>::max();
@@ -205,7 +205,7 @@ int matchGrid(const std::vector<point_2d> &points1, const cv::Mat &desc1, const 
     }
 
     if (Config::bestLRMatches()) {
-        for (int i1 = 0; i1 < matches_12.size(); ++i1) {
+        for (int i1 = 0, nsize = matches_12.size(); i1 < nsize; ++i1) {
             int &i2 = matches_12[i1];
             if (i2 >= 0 && matches_21[i2] != i1) {
                 i2 = -1;
@@ -236,7 +236,7 @@ int matchGrid(const std::vector<line_2d> &lines1, const cv::Mat &desc1,
         distances.resize(desc2.rows, std::numeric_limits<int>::max());
     }
 
-    for (int i1 = 0; i1 < lines1.size(); ++i1) {
+    for (int i1 = 0, nsize = lines1.size(); i1 < nsize; ++i1) {
 
         best_d = std::numeric_limits<int>::max();
         best_d2 = std::numeric_limits<int>::max();
@@ -279,14 +279,14 @@ int matchGrid(const std::vector<line_2d> &lines1, const cv::Mat &desc1,
                 best_d2 = d;
         }
 
-        if (best_d < best_d2 * Config::minRatio12P()) {
+        if (best_d < best_d2 * Config::minRatio12L()) {
             matches_12[i1] = best_idx;
             matches++;
         }
     }
 
     if (Config::bestLRMatches()) {
-        for (int i1 = 0; i1 < matches_12.size(); ++i1) {
+        for (int i1 = 0, nsize = matches_12.size(); i1 < nsize; ++i1) {
             int &i2 = matches_12[i1];
             if (i2 >= 0 && matches_21[i2] != i1) {
                 i2 = -1;

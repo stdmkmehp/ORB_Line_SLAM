@@ -5,37 +5,37 @@
 #--------------------------------------------------------------------------------------------
 
 # Camera calibration and distortion parameters (OpenCV) 
-Camera.fx: 721.5377
-Camera.fy: 721.5377
-Camera.cx: 609.5593
-Camera.cy: 172.854
+Camera.fx: 670.44482421875
+Camera.fy: 670.44482421875
+Camera.cx: 666.622802734375
+Camera.cy: 359.3409729003906
 
 Camera.k1: 0.0
 Camera.k2: 0.0
 Camera.p1: 0.0
 Camera.p2: 0.0
 
-Camera.width: 1241
-Camera.height: 376
+Camera.width: 1280
+Camera.height: 720
 
 # Camera frames per second 
-Camera.fps: 10.0
+Camera.fps: 15.0
 
 # stereo baseline times fx
-Camera.bf: 387.5744
+Camera.bf: 80.4534
 
 # Color order of the images (0: BGR, 1: RGB. It is ignored if images are grayscale)
-Camera.RGB: 1
+Camera.RGB: 0
 
 # Close/Far threshold. Baseline times.
-ThDepth: 40
+ThDepth: 125
 
 #--------------------------------------------------------------------------------------------
 # ORB Parameters
 #--------------------------------------------------------------------------------------------
 
 # ORB Extractor: Number of features per image
-ORBextractor.nFeatures: 2000
+ORBextractor.nFeatures: 1200
 
 # ORB Extractor: Scale factor between levels in the scale pyramid 	
 ORBextractor.scaleFactor: 1.2
@@ -53,16 +53,16 @@ ORBextractor.minThFAST: 7
 #--------------------------------------------------------------------------------------------
 # Viewer Parameters
 #--------------------------------------------------------------------------------------------
-Viewer.KeyFrameSize: 0.6
-Viewer.KeyFrameLineWidth: 2
-Viewer.GraphLineWidth: 1
+Viewer.KeyFrameSize: 0.05
+Viewer.KeyFrameLineWidth: 1
+Viewer.GraphLineWidth: 0.9
 Viewer.PointSize: 2
-Viewer.CameraSize: 0.7
+Viewer.CameraSize: 0.08
 Viewer.CameraLineWidth: 3
 Viewer.ViewpointX: 0
-Viewer.ViewpointY: -100
-Viewer.ViewpointZ: -0.1
-Viewer.ViewpointF: 2000
+Viewer.ViewpointY: -0.7
+Viewer.ViewpointZ: -1.8
+Viewer.ViewpointF: 500
 
 
 # -----------------------------------------------------------------------------------------------------
@@ -87,17 +87,17 @@ use_motion_model   : true     # true if using constant motion model
 # Tracking parameters
 # -----------------------------------------------------------------------------------------------------
 # Point features
-#max_dist_epip     : 0.0        # max. epipolar distance in pixels
+#max_dist_epip     : 1.0        # max. epipolar distance in pixels
 min_disp          : 1.0        # min. disparity (avoid points in the infinite)
 #min_ratio_12_p    : 0.75       # min. ratio between the first and second best matches
 
 # Line segment features
 line_sim_th       : 0.75       # threshold for cosine similarity
-stereo_overlap_th : 0.75
-f2f_overlap_th    : 0.75
-min_line_length   : 0.025      # min. line length (relative to img size)
-line_horiz_th     : 0.1        # parameter to avoid horizontal lines (pixels)
-min_ratio_12_l    : 0.9        # parameter to avoid outliers in line matching
+stereo_overlap_th : 0.85
+f2f_overlap_th    : 0.85
+min_line_length   : 0.05      # min. line length (relative to img size)
+line_horiz_th     : 1.0        # parameter to avoid horizontal lines (pixels)
+min_ratio_12_l    : 0.75        # parameter to avoid outliers in line matching
 ls_min_disp_ratio : 0.7        # min ratio between min(disp)/max(disp) for a LS
 
 # LSD parameters
@@ -115,7 +115,7 @@ lsd_n_bins       : 1024
 # -----------------------------------------------------------------------------------------------------
 max_iters        : 5           # max. number of iterations in the first stage of the optimization
 max_iters_ref    : 10          # max. number of iterations in the refinement stage
-inlier_k         : 1.0         # factor to discard outliers before the refinement stage
+inlier_k         : 4.0         # factor to discard outliers before the refinement stage
 
 # Feature detection parameters
 # -----------------------------------------------------------------------------------------------------

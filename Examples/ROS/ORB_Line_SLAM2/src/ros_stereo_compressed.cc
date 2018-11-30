@@ -50,12 +50,12 @@ public:
 
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "RGBD");
+    ros::init(argc, argv, "ORB_Line_SLAM2");
     ros::start();
 
     if(argc != 4)
     {
-        cerr << endl << "Usage: rosrun ORB_SLAM2 Stereo path_to_vocabulary path_to_settings do_rectify" << endl;
+        cerr << endl << "Usage: rosrun ORB_Line_SLAM2 Stereo path_to_vocabulary path_to_settings do_rectify" << endl;
         ros::shutdown();
         return 1;
     }    
@@ -109,8 +109,8 @@ int main(int argc, char **argv)
 
     ros::NodeHandle nh;
 
-    message_filters::Subscriber<sensor_msgs::CompressedImage> left_sub(nh, "/zed/left/image_rect_color/compressed", 1);
-    message_filters::Subscriber<sensor_msgs::CompressedImage> right_sub(nh, "/zed/right/image_rect_color/compressed", 1);
+    message_filters::Subscriber<sensor_msgs::CompressedImage> left_sub(nh, "/camera/left", 1);
+    message_filters::Subscriber<sensor_msgs::CompressedImage> right_sub(nh, "/camera/right", 1);
     typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::CompressedImage, sensor_msgs::CompressedImage> sync_pol;
     message_filters::Synchronizer<sync_pol> sync(sync_pol(10), left_sub,right_sub);
     sync.registerCallback(boost::bind(&ImageGrabber::GrabStereo,&igb,_1,_2));
@@ -144,7 +144,7 @@ void ImageGrabber::GrabStereo(const sensor_msgs::CompressedImageConstPtr& msgLef
     try{
         cv::Mat imLeft = matFromImage(msgLeft);
         cv::Mat imRight = matFromImage(msgRight);
-        
+        // cv::imwrite("/home/lab404/Pictures/imLeft_compressed.png",imLeft);std::cout<<"saved img!"<<std::endl;
         if(do_rectify)
         {
             cv::remap(imLeft,imLeft,M1l,M2l,cv::INTER_LINEAR);
@@ -155,7 +155,7 @@ void ImageGrabber::GrabStereo(const sensor_msgs::CompressedImageConstPtr& msgLef
         {
             mpSLAM->TrackStereo(imLeft,imRight,msgLeft->header.stamp.toSec());
         }
-        }
+    }
     catch (...)
     {
         ROS_ERROR("Error in GrabStereo of CompressedImage.");
