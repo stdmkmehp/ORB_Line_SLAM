@@ -51,7 +51,7 @@ public:
 
 public:
 
-    LoopClosing(Map* pMap, KeyFrameDatabase* pDB, ORBVocabulary* pVoc,const bool bFixScale);
+    LoopClosing(Map* pMap, KeyFrameDatabase* pDB, ORBVocabulary* pVoc, LineVocabulary* pVoc_l, const bool bFixScale);
 
     void SetTracker(Tracking* pTracker);
 
@@ -109,6 +109,7 @@ protected:
 
     KeyFrameDatabase* mpKeyFrameDB;
     ORBVocabulary* mpORBVocabulary;
+    LineVocabulary* mpLineVocabulary;
 
     LocalMapping *mpLocalMapper;
 

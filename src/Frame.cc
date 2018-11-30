@@ -37,14 +37,14 @@ Frame::Frame()
 
 //Copy Constructor
 Frame::Frame(const Frame &frame)
-    :mpORBvocabulary(frame.mpORBvocabulary), mpORBextractorLeft(frame.mpORBextractorLeft), mpORBextractorRight(frame.mpORBextractorRight),
+    :mpORBvocabulary(frame.mpORBvocabulary), mpLinevocabulary(frame.mpLinevocabulary), mpORBextractorLeft(frame.mpORBextractorLeft), mpORBextractorRight(frame.mpORBextractorRight),
      mpLineextractorLeft(frame.mpLineextractorLeft), mpLineextractorRight(frame.mpLineextractorRight),
      mTimeStamp(frame.mTimeStamp), mK(frame.mK.clone()), mDistCoef(frame.mDistCoef.clone()),
      mbf(frame.mbf), mb(frame.mb), mThDepth(frame.mThDepth), N(frame.N), N_l(frame.N_l),
      mvKeys(frame.mvKeys), mvKeysRight(frame.mvKeysRight), mvKeysUn(frame.mvKeysUn),
      mvKeys_Line(frame.mvKeys_Line), mvKeysRight_Line(frame.mvKeysRight_Line), mvKeysUn_Line(frame.mvKeysUn_Line),
      mvuRight(frame.mvuRight), mvDepth(frame.mvDepth), mvDisparity_l(frame.mvDisparity_l), mvle_l(frame.mvle_l),
-     mBowVec(frame.mBowVec), mFeatVec(frame.mFeatVec),
+     mBowVec(frame.mBowVec), mFeatVec(frame.mFeatVec),mBowVec_l(frame.mBowVec_l), mFeatVec_l(frame.mFeatVec_l),
      mDescriptors(frame.mDescriptors.clone()), mDescriptorsRight(frame.mDescriptorsRight.clone()),
      mDescriptors_Line(frame.mDescriptors_Line.clone()), mDescriptorsRight_Line(frame.mDescriptorsRight_Line.clone()),
      mvpMapPoints(frame.mvpMapPoints), mvpMapLines(frame.mvpMapLines),
@@ -136,8 +136,8 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
 Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeStamp, 
     ORBextractor* extractorLeft, ORBextractor* extractorRight, 
     Lineextractor* LineextractorLeft, Lineextractor* LineextractorRight,
-    ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth)
-    :mpORBvocabulary(voc),mpORBextractorLeft(extractorLeft),mpORBextractorRight(extractorRight),
+    ORBVocabulary* voc, LineVocabulary* voc_l, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth)
+    :mpORBvocabulary(voc), mpLinevocabulary(voc_l), mpORBextractorLeft(extractorLeft),mpORBextractorRight(extractorRight),
      mpLineextractorLeft(LineextractorLeft),mpLineextractorRight(LineextractorRight),
      mTimeStamp(timeStamp), mK(K.clone()),mDistCoef(distCoef.clone()), mbf(bf), mThDepth(thDepth),
      mpReferenceKF(static_cast<KeyFrame*>(NULL))
@@ -589,6 +589,11 @@ void Frame::ComputeBoW()
         vector<cv::Mat> vCurrentDesc = Converter::toDescriptorVector(mDescriptors);
         mpORBvocabulary->transform(vCurrentDesc,mBowVec,mFeatVec,4);
     }
+    if(mBowVec_l.empty())
+    {
+        vector<cv::Mat> vCurrentDesc_l = Converter::toDescriptorVector(mDescriptors_Line);
+        mpLinevocabulary->transform(vCurrentDesc_l,mBowVec_l,mFeatVec_l,4);
+    }
 }
 
 void Frame::UndistortKeyPoints()
@@ -872,13 +877,20 @@ void Frame::ComputeStereoMatches()
 
 void Frame::ComputeStereoMatches_Lines(bool initial)
 {
+    bool doNotDropMonoLines = true;
+
     std::vector<cv::line_descriptor::KeyLine> mvKeys_Line_tmp;
     mvKeys_Line_tmp.reserve(mvKeys_Line.size());
     mvDisparity_l.clear();
-    mvDisparity_l.reserve(mvKeys_Line.size());
     mvle_l.clear();
-    mvle_l.reserve(mvKeys_Line.size());
-
+    if(doNotDropMonoLines){
+        mvDisparity_l.resize(mvKeys_Line.size(),pair<float,float>(-1,-1));
+        mvle_l.resize(mvKeys_Line.size(),Vector3d(0,0,0));
+    }
+    else {
+        mvDisparity_l.reserve(mvKeys_Line.size());
+        mvle_l.reserve(mvKeys_Line.size());
+    }
 
     // Line segments stereo matching
     // --------------------------------------------------------------------------------------------------------------------
@@ -944,10 +956,18 @@ void Frame::ComputeStereoMatches_Lines(bool initial)
             && std::abs( sp_r(1)-ep_r(1) ) > Config::lineHorizTh()
             && overlap > Config::stereoOverlapTh() )
         {
-            mvKeys_Line_tmp.push_back(mvKeys_Line[i1]);
-            mvDisparity_l.push_back(make_pair(disp_s,disp_e));
-            mvle_l.push_back(le_l);
-            mDescriptors_Line_aux.push_back( mDescriptors_Line.row(i1) );
+            // TODO : check if works well
+            if(doNotDropMonoLines) {
+                mvDisparity_l[i1] = make_pair(disp_s,disp_e);
+                mvle_l[i1] = le_l;
+            }
+            else {
+                mvKeys_Line_tmp.push_back(mvKeys_Line[i1]);
+                mvDisparity_l.push_back(make_pair(disp_s,disp_e));
+                mvle_l.push_back(le_l);
+                mDescriptors_Line_aux.push_back( mDescriptors_Line.row(i1) );
+            }
+
             // use mvKeys_Line+mvDisparity_l+mvle_l instead of stereo_ls
             /*
             Vector3d sP_; //sP_ = backProjection( sp_l(0), sp_l(1), disp_s);
@@ -971,8 +991,12 @@ void Frame::ComputeStereoMatches_Lines(bool initial)
             */
         }
     }
-    mvKeys_Line.swap(mvKeys_Line_tmp);
-    mDescriptors_Line_aux.copyTo(mDescriptors_Line);
+    if(doNotDropMonoLines)
+        ;
+    else {
+        mvKeys_Line.swap(mvKeys_Line_tmp);
+        mDescriptors_Line_aux.copyTo(mDescriptors_Line);
+    }
 }
 
 double Frame::lineSegmentOverlapStereo(double spl_obs, double epl_obs, double spl_proj, double epl_proj)

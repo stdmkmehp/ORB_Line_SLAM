@@ -473,8 +473,8 @@ void Optimizer::removeOutliers(Matrix4d DT, Frame *pFrame)
     Vector3d Dt = DT.col(3).head(3);
 
     {
-    unique_lock<mutex> lock(MapPoint::mGlobalMutex);
-
+    unique_lock<mutex> lockP(MapPoint::mGlobalMutex);
+    unique_lock<mutex> lockL(MapLine::mGlobalMutex);
 
     if (Config::hasPoints()) {
         // point features
@@ -609,6 +609,9 @@ bool Optimizer::PoseOptimizationWithLine(Frame *pFrame)
     Matrix6d DT_cov;
     double   err = numeric_limits<double>::max();
     err = -1.0;
+
+    if(pFrame->mTcw_prev.empty())
+        pFrame->mTcw_prev = pFrame->mTcw;     // After Relocalization(), mTcw_prev is empty.
 
     // set init pose (depending on the use of prior information or not, and on the goodness of previous solution)
     if( Config::useMotionModel() )
@@ -947,7 +950,8 @@ void Optimizer::optimizeFunctions(Matrix4d DT, Matrix6d &H, Vector6d &g, double 
     Vector3d Dt = DT.col(3).head(3);
 
     {
-    unique_lock<mutex> lock(MapPoint::mGlobalMutex);
+    unique_lock<mutex> lockP(MapPoint::mGlobalMutex);
+    unique_lock<mutex> lockL(MapLine::mGlobalMutex);
     // from matched_pt to mvpMapPoints
     const int NP = pFrame->mvpMapPoints.size();
     for(int i=0; i<NP; ++i)
@@ -1000,10 +1004,8 @@ void Optimizer::optimizeFunctions(Matrix4d DT, Matrix6d &H, Vector6d &g, double 
             N_p++;
         }
     }
-    }   // end of unique_lock<mutex> lock(MapPoint::mGlobalMutex);
+
     // line segment features
-    {
-    unique_lock<mutex> lock(MapPoint::mGlobalMutex);
     const int NL = pFrame->mvpMapLines.size();
     for(int i=0; i<NL; ++i)
     {
@@ -1086,7 +1088,7 @@ void Optimizer::optimizeFunctions(Matrix4d DT, Matrix6d &H, Vector6d &g, double 
             N_l++;
         }
     }
-    }   // end of unique_lock<mutex> lock(MapPoint::mGlobalMutex);
+    }
 
     // sum H, g and err from both points and lines
     H = H_p + H_l;
@@ -1116,7 +1118,8 @@ void Optimizer::optimizeFunctionsRobust(Matrix4d DT, Matrix6d &H, Vector6d &g, d
     Vector3d Dt = DT.col(3).head(3);
 
     {
-    unique_lock<mutex> lock(MapPoint::mGlobalMutex);
+    unique_lock<mutex> lockP(MapPoint::mGlobalMutex);
+    unique_lock<mutex> lockL(MapLine::mGlobalMutex);
     // point features pre-weight computation
     const int NP = pFrame->mvpMapPoints.size();
     for(int i=0; i<NP; ++i)
@@ -1210,7 +1213,8 @@ void Optimizer::optimizeFunctionsRobust(Matrix4d DT, Matrix6d &H, Vector6d &g, d
     int N_l = 0;
 
     {
-    unique_lock<mutex> lock(MapPoint::mGlobalMutex);
+    unique_lock<mutex> lockP(MapPoint::mGlobalMutex);
+    unique_lock<mutex> lockL(MapLine::mGlobalMutex);
     const int NP = pFrame->mvpMapPoints.size();
     for(int i=0; i<NP; ++i)
     {

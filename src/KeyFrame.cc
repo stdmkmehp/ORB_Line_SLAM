@@ -32,7 +32,9 @@ KeyFrame::KeyFrame(Frame &F, Map *pMap, KeyFrameDatabase *pKFDB):
     mnFrameId(F.mnId),  mTimeStamp(F.mTimeStamp), mnGridCols(FRAME_GRID_COLS), mnGridRows(FRAME_GRID_ROWS),
     mfGridElementWidthInv(F.mfGridElementWidthInv), mfGridElementHeightInv(F.mfGridElementHeightInv),
     mnTrackReferenceForFrame(0), mnFuseTargetForKF(0), mnBALocalForKF(0), mnBAFixedForKF(0),
-    mnLoopQuery(0), mnLoopWords(0), mnRelocQuery(0), mnRelocWords(0), mnBAGlobalForKF(0),
+    mnLoopQuery(0), mnLoopWords(0), mLoopScore(0), mnRelocQuery(0), mnRelocWords(0), mRelocScore(0),
+    mnLoopQuery_l(0), mnLoopWords_l(0), mLoopScore_l(0), mnRelocQuery_l(0), mnRelocWords_l(0), mRelocScore_l(0),
+    mLoopScore_pl(0), mRelocScore_pl(0), mnBAGlobalForKF(0),
     fx(F.fx), fy(F.fy), cx(F.cx), cy(F.cy), invfx(F.invfx), invfy(F.invfy),
     mbf(F.mbf), mb(F.mb), mThDepth(F.mThDepth), N(F.N), N_l(F.N_l), mvKeys(F.mvKeys), mvKeysUn(F.mvKeysUn),
     mvuRight(F.mvuRight), mvDepth(F.mvDepth), mDescriptors(F.mDescriptors.clone()),
@@ -43,8 +45,8 @@ KeyFrame::KeyFrame(Frame &F, Map *pMap, KeyFrameDatabase *pKFDB):
     mvInvLevelSigma2(F.mvInvLevelSigma2), mnMinX(F.mnMinX), mnMinY(F.mnMinY), mnMaxX(F.mnMaxX),
     mnMaxY(F.mnMaxY), mK(F.mK), mvpMapPoints(F.mvpMapPoints), 
     mvpMapLines(F.mvpMapLines),
-    mpKeyFrameDB(pKFDB),
-    mpORBvocabulary(F.mpORBvocabulary), mbFirstConnection(true), mpParent(NULL), mbNotErase(false),
+    mpKeyFrameDB(pKFDB), mpORBvocabulary(F.mpORBvocabulary), mpLinevocabulary(F.mpLinevocabulary),
+    mbFirstConnection(true), mpParent(NULL), mbNotErase(false),
     mbToBeErased(false), mbBad(false), mHalfBaseline(F.mb/2), mpMap(pMap)
 {
     mnId=nNextId++;
@@ -69,6 +71,47 @@ void KeyFrame::ComputeBoW()
         // We assume the vocabulary tree has 6 levels, change the 4 otherwise
         mpORBvocabulary->transform(vCurrentDesc,mBowVec,mFeatVec,4);
     }
+    if(mBowVec_l.empty() || mFeatVec_l.empty())
+    {
+        vector<cv::Mat> vCurrentDesc_l = Converter::toDescriptorVector(mDescriptors_l);
+        // Feature vector associate features with nodes in the 4th level (from leaves up)
+        // We assume the vocabulary tree has 6 levels, change the 4 otherwise
+        mpLinevocabulary->transform(vCurrentDesc_l,mBowVec_l,mFeatVec_l,4);
+    }
+}
+
+void KeyFrame::GenerateWordParis(map<WordId,list<WordId>>& wordPairs)
+{
+    //map<WordId,list<WordId>> wordPairs;//& = mwordPairs;
+    wordPairs.clear();
+
+    vector<point_kdtree> vpkdt;
+    vpkdt.resize(N);
+    for(int i=0; i<N; ++i)
+        vpkdt[i] = point_kdtree(mvKeysUn[i]);
+
+    vector<WordId> vwid;
+    vwid.resize(N);
+    for(int i=0; i<N; ++i)
+        vwid[i] = mpORBvocabulary->transform(mDescriptors.row(i));
+
+    KDTree<point_kdtree> kdtree(vpkdt);
+    for(int i=0; i<N; ++i)
+    {
+        list<WordId> lwid;
+        vector<int> radIndices = kdtree.radiusSearch(vpkdt[i], vpkdt[i].radius());
+        for(auto it=radIndices.begin(),itend=radIndices.end(); it!=itend; ++it)
+            lwid.push_back(vwid[*it]);
+
+        map<WordId,list<WordId>>::iterator itwid = wordPairs.find(vwid[i]);
+        if(itwid!=wordPairs.end())
+        {
+            list<WordId>& lwid0 = itwid->second;
+            lwid0.insert(lwid0.end(),lwid.begin(),lwid.end());
+        }
+        else wordPairs.insert(make_pair(vwid[i],lwid));
+    }
+    mwordPairs = wordPairs;
 }
 
 void KeyFrame::SetPose(const cv::Mat &Tcw_)

@@ -112,3 +112,9 @@ add_executable(PL_stereo_kitti
 Examples/PL/PL_stereo_kitti.cc)
 target_link_libraries(PL_stereo_kitti ${PROJECT_NAME})
 
+#PlaceRecognition
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples/PlaceRecognition)
+add_executable(placeRecognition
+Examples/PlaceRecognition/placeRecognition.cc)
+target_link_libraries(placeRecognition ${PROJECT_NAME})
+

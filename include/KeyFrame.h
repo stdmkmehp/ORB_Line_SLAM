@@ -45,6 +45,7 @@ class KeyFrameDatabase;
 
 class KeyFrame
 {
+    typedef unsigned int WordId;
 public:
     KeyFrame(Frame &F, Map* pMap, KeyFrameDatabase* pKFDB);
 
@@ -59,6 +60,7 @@ public:
 
     // Bag of Words Representation
     void ComputeBoW();
+    void GenerateWordParis(map<WordId,list<WordId>>& wordPairs);
 
     // Covisibility graph functions
     void AddConnection(KeyFrame* pKF, const int &weight);
@@ -161,6 +163,16 @@ public:
     int mnRelocWords;
     float mRelocScore;
 
+    long unsigned int mnLoopQuery_l;
+    int mnLoopWords_l;
+    float mLoopScore_l;
+    long unsigned int mnRelocQuery_l;
+    int mnRelocWords_l;
+    float mRelocScore_l;
+
+    float mLoopScore_pl;
+    float mRelocScore_pl;
+
     // Variables used by loop closing
     cv::Mat mTcwGBA;
     cv::Mat mTcwBefGBA;
@@ -191,8 +203,10 @@ public:
     //BoW
     DBoW2::BowVector mBowVec;
     DBoW2::FeatureVector mFeatVec;
+    // bag of word pairs
+    map<WordId,list<WordId>> mwordPairs;
 
-    // TODO Line BoW
+    // Line BoW
     DBoW2::BowVector mBowVec_l;
     DBoW2::FeatureVector mFeatVec_l;
 
@@ -214,7 +228,6 @@ public:
     const int mnMaxY;
     const cv::Mat mK;
 
-
     // The following variables need to be accessed trough a mutex to be thread safe.
 protected:
 
@@ -232,6 +245,8 @@ protected:
     // BoW
     KeyFrameDatabase* mpKeyFrameDB;
     ORBVocabulary* mpORBvocabulary;
+    ORBVocabulary* mpLinevocabulary;
+
 
     // Grid over the image to speed up feature matching
     std::vector< std::vector <std::vector<size_t> > > mGrid;

@@ -129,6 +129,8 @@ private:
 
     // ORB vocabulary used for place recognition and feature matching.
     ORBVocabulary* mpVocabulary;
+    // Line vocabulary used for place recognition and feature matching.
+    LineVocabulary* mpVocabulary_l;
 
     // KeyFrame database for place recognition (relocalization and loop detection).
     KeyFrameDatabase* mpKeyFrameDatabase;

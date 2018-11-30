@@ -35,9 +35,9 @@
 namespace ORB_SLAM2
 {
 
-LoopClosing::LoopClosing(Map *pMap, KeyFrameDatabase *pDB, ORBVocabulary *pVoc, const bool bFixScale):
+LoopClosing::LoopClosing(Map *pMap, KeyFrameDatabase *pDB, ORBVocabulary *pVoc, LineVocabulary *pVoc_l, const bool bFixScale):
     mbResetRequested(false), mbFinishRequested(false), mbFinished(true), mpMap(pMap),
-    mpKeyFrameDB(pDB), mpORBVocabulary(pVoc), mpMatchedKF(NULL), mLastLoopKFid(0), mbRunningGBA(false), mbFinishedGBA(true),
+    mpKeyFrameDB(pDB), mpORBVocabulary(pVoc), mpLineVocabulary(pVoc_l), mpMatchedKF(NULL), mLastLoopKFid(0), mbRunningGBA(false), mbFinishedGBA(true),
     mbStopGBA(false), mpThreadGBA(NULL), mbFixScale(bFixScale), mnFullBAIdx(0)
 {
     mnCovisibilityConsistencyTh = 3;
@@ -123,6 +123,9 @@ bool LoopClosing::DetectLoop()
     // We will impose loop candidates to have a higher similarity than this
     const vector<KeyFrame*> vpConnectedKeyFrames = mpCurrentKF->GetVectorCovisibleKeyFrames();
     const DBoW2::BowVector &CurrentBowVec = mpCurrentKF->mBowVec;
+    const DBoW2::BowVector &CurrentBowVec_l = mpCurrentKF->mBowVec_l;
+    int np = mpCurrentKF->N;
+    int nl = mpCurrentKF->N_l;
     float minScore = 1;
     for(size_t i=0; i<vpConnectedKeyFrames.size(); i++)
     {
@@ -130,15 +133,18 @@ bool LoopClosing::DetectLoop()
         if(pKF->isBad())
             continue;
         const DBoW2::BowVector &BowVec = pKF->mBowVec;
+        const DBoW2::BowVector &BowVec_l = pKF->mBowVec_l;
 
-        float score = mpORBVocabulary->score(CurrentBowVec, BowVec);
+        float spi = mpORBVocabulary->score(CurrentBowVec, BowVec);            //FIXME: add score of Line Vocabulary
+        float sli = mpLineVocabulary->score(CurrentBowVec_l, BowVec_l);
+        float score = spi;// (spi*np+sli*nl)/(np+nl);
 
         if(score<minScore)
             minScore = score;
     }
 
     // Query the database imposing the minimum score
-    vector<KeyFrame*> vpCandidateKFs = mpKeyFrameDB->DetectLoopCandidates(mpCurrentKF, minScore);
+    vector<KeyFrame*> vpCandidateKFs = mpKeyFrameDB->DetectLoopCandidates(mpCurrentKF, minScore);       // check if minScore matched DetectLoopCandidatesWithLine
 
     // If there are no loop candidates, just add new keyframe and return false
     if(vpCandidateKFs.empty())

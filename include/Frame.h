@@ -57,6 +57,7 @@ class KeyFrame;
 
 class Frame
 {
+    typedef unsigned int WordId;
 public:
     Frame();
 
@@ -69,7 +70,7 @@ public:
         const float &bf, const float &thDepth);
     // Constructor for stereo cameras with lines
     Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeStamp, ORBextractor* extractorLeft, ORBextractor* extractorRight, 
-        Lineextractor* LineextractorLeft, Lineextractor* LineextractorRight, ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef,
+        Lineextractor* LineextractorLeft, Lineextractor* LineextractorRight, ORBVocabulary* voc, LineVocabulary* voc_l, cv::Mat &K, cv::Mat &distCoef,
         const float &bf, const float &thDepth);
 
     // Constructor for RGB-D cameras.
@@ -137,6 +138,7 @@ public:
 public:
     // Vocabulary used for relocalization.
     ORBVocabulary* mpORBvocabulary;
+    LineVocabulary* mpLinevocabulary;
 
     // Point Feature extractor. The right is used only in the stereo case.
     ORBextractor* mpORBextractorLeft, *mpORBextractorRight;
@@ -198,6 +200,13 @@ public:
     // Bag of Words Vector structures.
     DBoW2::BowVector mBowVec;
     DBoW2::FeatureVector mFeatVec;
+    // bag of word pairs
+    map<WordId,list<WordId>> mwordPairs;
+
+    // Bag of Words Vector structures.
+    DBoW2::BowVector mBowVec_l;
+    DBoW2::FeatureVector mFeatVec_l;
+
 
     // ORB descriptor, each row associated to a keypoint.
     cv::Mat mDescriptors, mDescriptorsRight;

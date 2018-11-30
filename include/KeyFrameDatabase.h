@@ -28,9 +28,9 @@
 #include "KeyFrame.h"
 #include "Frame.h"
 #include "ORBVocabulary.h"
+#include "KDTree.h"
 
 #include<mutex>
-
 
 namespace ORB_SLAM2
 {
@@ -38,12 +38,31 @@ namespace ORB_SLAM2
 class KeyFrame;
 class Frame;
 
+class point_kdtree : public std::array<float, 2>
+{
+public:
+    static const int DIM = 2;       // dimension of space (or "k" of k-d tree)
+
+    point_kdtree() { (*this)[0]=0; (*this)[1]=0; r=0; }
+    point_kdtree(float x, float y, float _r=0) { (*this)[0]=x; (*this)[1]=y; r=_r; }
+    point_kdtree(const cv::KeyPoint& kp) : point_kdtree(kp.pt, kp.size) { }
+    point_kdtree(const cv::Point2f& p, float _r=0) { (*this)[0]=p.x; (*this)[1]=p.y; r=_r; }
+
+    float radius() { return r; }
+
+private:
+    float r;
+};
+
+
 
 class KeyFrameDatabase
 {
+    typedef unsigned int WordId;
 public:
 
     KeyFrameDatabase(const ORBVocabulary &voc);
+    KeyFrameDatabase(const ORBVocabulary &voc, const LineVocabulary &voc_l);
 
    void add(KeyFrame* pKF);
 
@@ -52,18 +71,22 @@ public:
    void clear();
 
    // Loop Detection
-   std::vector<KeyFrame *> DetectLoopCandidates(KeyFrame* pKF, float minScore);
+   std::vector<KeyFrame*> DetectLoopCandidates(KeyFrame* pKF, float minScore);
+   std::vector<KeyFrame*> DetectLoopCandidatesWithLine(KeyFrame* pKF, float minScore);
 
    // Relocalization
    std::vector<KeyFrame*> DetectRelocalizationCandidates(Frame* F);
+   std::vector<KeyFrame*> DetectRelocalizationCandidatesWithLine(Frame* F);
 
 protected:
 
   // Associated vocabulary
-  const ORBVocabulary* mpVoc;
+   const ORBVocabulary* mpVoc;
+   const LineVocabulary* mpVoc_l;
 
   // Inverted file
   std::vector<list<KeyFrame*> > mvInvertedFile;
+  std::vector<list<KeyFrame*> > mvInvertedFile_l;
 
   // Mutex
   std::mutex mMutex;

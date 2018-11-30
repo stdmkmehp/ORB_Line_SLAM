@@ -43,8 +43,8 @@ using namespace std;
 namespace ORB_SLAM2
 {
 
-Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer, MapDrawer *pMapDrawer, Map *pMap, KeyFrameDatabase* pKFDB, const string &strSettingPath, const int sensor):
-    mState(NO_IMAGES_YET), mSensor(sensor), mbOnlyTracking(false), mbVO(false), mpORBVocabulary(pVoc),
+Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, LineVocabulary* pVoc_l, FrameDrawer *pFrameDrawer, MapDrawer *pMapDrawer, Map *pMap, KeyFrameDatabase* pKFDB, const string &strSettingPath, const int sensor):
+    mState(NO_IMAGES_YET), mSensor(sensor), mbOnlyTracking(false), mbVO(false), mpORBVocabulary(pVoc), mpLineVocabulary(pVoc_l),
     mpKeyFrameDB(pKFDB), mpInitializer(static_cast<Initializer*>(NULL)), mpSystem(pSys), mpViewer(NULL),
     mpFrameDrawer(pFrameDrawer), mpMapDrawer(pMapDrawer), mpMap(pMap), mnLastRelocFrameId(0)
 {
@@ -218,7 +218,7 @@ cv::Mat Tracking::GrabImageStereo(const cv::Mat &imRectLeft, const cv::Mat &imRe
     }
 
     mCurrentFrame = Frame(mImGray,imGrayRight,timestamp,mpORBextractorLeft,mpORBextractorRight,
-        mpLineextractorLeft,mpLineextractorRight,mpORBVocabulary,
+        mpLineextractorLeft,mpLineextractorRight,mpORBVocabulary,mpLineVocabulary,
         mK,mDistCoef,mbf,mThDepth);
     // cout<<"[Debug] mCurrentFrame.mnId "<<mCurrentFrame.mnId<<endl;
     Track();
@@ -915,6 +915,7 @@ bool Tracking::TrackReferenceKeyFrameWithLine()
     for (int i1 = 0; i1 < nmatches_12; ++i1) {
         const int i2 = matches_12[i1];
         if (i2 < 0) continue;
+        if(mCurrentFrame.mvDisparity_l[i2].first<0 || mCurrentFrame.mvDisparity_l[i2].second<0) continue;   //FIXME: optimization with mono line features
 
         // check for orientation and position in image
         if(false) {
@@ -1200,7 +1201,7 @@ bool Tracking::TrackWithMotionModel()
 
 bool Tracking::TrackWithMotionModelWithLine()
 {
-    // cout<<"[Debug] Calling TrackWithMotionModelWithLine()"<<endl;
+    // cout<<"[Debug] Calling TrackWithMotionModelWithLine(), mCurrentFrame.mnId:"<<mCurrentFrame.mnId<<endl;
 
     ORBmatcher matcher(0.9,true);
 
@@ -1243,6 +1244,7 @@ bool Tracking::TrackWithMotionModelWithLine()
         if(!mLastFrame.mvpMapLines[i1]) continue;
         const int i2 = matches_12[i1];
         if (i2 < 0) continue;
+        if(mCurrentFrame.mvDisparity_l[i2].first<0 || mCurrentFrame.mvDisparity_l[i2].second<0) continue;   //FIXME: optimization with mono line features
 
         // check for orientation and position in image
         if(true) {
@@ -1450,6 +1452,8 @@ bool Tracking::TrackWithMotionModelWithLine()
 
 bool Tracking::TrackLocalMap()
 {
+    // cout<<"[Debug] calling TrackLocalMap, mCurrentFrame.mnId:"<<mCurrentFrame.mnId<<endl;
+
     // We have an estimation of the camera pose and some map points tracked in the frame.
     // We retrieve the local map and try to find matches to points in the local map.
 
@@ -1901,6 +1905,8 @@ void Tracking::SearchLocalPointsAndLines()
     for (int i1 = 0, nmatches_12 = matches_12.size(); i1 < nmatches_12; ++i1) {                // remove maplines that do not match with orientation and position in image
         int i2 = matches_12[i1];
         if (i2 < 0) continue;
+        if(mCurrentFrame.mvDisparity_l[i2].first<0 || mCurrentFrame.mvDisparity_l[i2].second<0) continue;   //FIXME: optimization with mono line features
+
         if(mCurrentFrame.mvpMapLines[i2])
             if(mCurrentFrame.mvpMapLines[i2]->Observations()>0)
                 continue;               // NOTICE: mCurrentFrame.mvpMapLines remain unchanged after TrackMotionModel. Do not fill it with NULL.

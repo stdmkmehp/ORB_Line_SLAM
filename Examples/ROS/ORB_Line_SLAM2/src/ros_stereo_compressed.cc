@@ -144,7 +144,6 @@ void ImageGrabber::GrabStereo(const sensor_msgs::CompressedImageConstPtr& msgLef
     try{
         cv::Mat imLeft = matFromImage(msgLeft);
         cv::Mat imRight = matFromImage(msgRight);
-        // cv::imwrite("/home/lab404/Pictures/imLeft_compressed.png",imLeft);std::cout<<"saved img!"<<std::endl;
         if(do_rectify)
         {
             cv::remap(imLeft,imLeft,M1l,M2l,cv::INTER_LINEAR);
