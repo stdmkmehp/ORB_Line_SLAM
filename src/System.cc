@@ -61,16 +61,16 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
 
 
     //Load ORB Vocabulary
-    cout << endl << "Loading ORB Vocabulary. This could take a while..." << endl;
+    cout << endl << "Loading ORB and Line Vocabulary. This could take a while..." << endl;
 
     mpVocabulary = new ORBVocabulary();
-    bool bVocLoad = mpVocabulary->loadFromTextFile(strVocFile);
+    bool bVocLoad = mpVocabulary->loadFromTextFile(Config::dbowVocP());
     mpVocabulary_l = new LineVocabulary();
-    bool bVocLoad_l = mpVocabulary_l->loadFromTextFile("/home/lab404/Software/qt_workspace/ORB_Line_SLAM/Vocabulary/LSDvoc.txt");     //Config::dbowVocL()
+    bool bVocLoad_l = mpVocabulary_l->loadFromTextFile(Config::dbowVocL());
     if(!bVocLoad || !bVocLoad_l)
     {
         cerr << "Wrong path to vocabulary. " << endl;
-        cerr << "Falied to open at: " << strVocFile <<" or " << Config::dbowVocL() << endl;
+        cerr << "Falied to open at: " << Config::dbowVocP() <<" or " << Config::dbowVocL() << endl;
         exit(-1);
     }
     cout << "Vocabulary loaded!" << endl << endl;
@@ -80,6 +80,16 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
 
     //Create the Map
     mpMap = new Map();
+
+    if(Config::isRelocalizationMode())
+    {
+        mpSystemSetting = new SystemSetting(mpVocabulary, mpVocabulary_l);
+        mpSystemSetting->LoadSystemSetting(strSettingsFile);
+        cout << endl << "Loading Map from " << Config::pathLoadMap() << ". This could take a while..." << endl;
+        mpMap->Load(Config::pathLoadMap(), mpSystemSetting, mpKeyFrameDatabase);
+        ActivateLocalizationMode(); //此处启用定位模式
+        cout << endl << "Map loaded!" << endl << endl << "Relocalization Mode is activated!" << endl  << endl;
+    }
 
     //Create Drawers. These are used by the Viewer
     mpFrameDrawer = new FrameDrawer(mpMap);
@@ -306,6 +316,10 @@ void System::Shutdown()
 {
     mpLocalMapper->RequestFinish();
     mpLoopCloser->RequestFinish();
+
+    // Save after Global BA
+    mpMap->Save(Config::pathSaveMap());
+
     if(mpViewer)
     {
         mpViewer->RequestFinish();

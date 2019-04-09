@@ -1,5 +1,9 @@
 %YAML:1.0
 
+RelocalizationMode: 0
+PathLoadMap: "/home/lab404/Documents/map_kitti"
+PathSaveMap: "/home/lab404/Documents/map"
+
 #--------------------------------------------------------------------------------------------
 # Camera Parameters. Adjust them!
 #--------------------------------------------------------------------------------------------
@@ -155,8 +159,8 @@ lambda_lba_k          : 10.0
 max_iters_lba         : 15
 
 # Loop closure
-vocabulary_p          : ""
-vocabulary_l          : ""
+vocabulary_p          : "/home/lab404/workspace/ORB_Line_SLAM/Vocabulary/ORBvoc.txt"
+vocabulary_l          : "/home/lab404/workspace/ORB_Line_SLAM/Vocabulary/LSDvoc.txt"
 
 lc_mat                : 0.5
 lc_res                : 1.5

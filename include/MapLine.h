@@ -45,6 +45,7 @@ class Frame;
 class MapLine
 {
 public:
+    MapLine(const Eigen::Vector3d &sP, const Eigen::Vector3d &eP, Map* pMap);
     MapLine(const Eigen::Vector3d &sP, const Eigen::Vector3d &eP, KeyFrame* pRefKF, Map* pMap);
     MapLine(const Eigen::Vector3d &sP, const Eigen::Vector3d &eP,  Map* pMap, Frame* pFrame, const int &idxF);
 
@@ -79,6 +80,8 @@ public:
     cv::Mat GetDescriptor();
 
     void UpdateNormalAndDepth();
+
+    KeyFrame* SetReferenceKeyFrame(KeyFrame* RFKF);
 
 public:
     long unsigned int mnId;

@@ -30,6 +30,7 @@
 #include "LineExtractor.h"
 #include "Frame.h"
 #include "KeyFrameDatabase.h"
+#include "InitKeyFrame.h"
 
 #include <mutex>
 
@@ -42,12 +43,14 @@ class MapPoint;
 class MapLine;
 class Frame;
 class KeyFrameDatabase;
+class InitKeyFrame;
 
 class KeyFrame
 {
     typedef unsigned int WordId;
 public:
     KeyFrame(Frame &F, Map* pMap, KeyFrameDatabase* pKFDB);
+    KeyFrame(InitKeyFrame& initkf, Map* pMap, KeyFrameDatabase* pKFDB, vector<MapPoint*>& vpMapPoints, vector<MapLine*>& vpMapLines);
 
     // Pose functions
     void SetPose(const cv::Mat &Tcw);

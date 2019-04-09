@@ -36,6 +36,10 @@ public:
     static void loadFromFile( const std::string &config_file );
     static Config& getInstance();
 
+    static bool&    isRelocalizationMode()    { return getInstance().bIsRelocalizationMode; }
+    static std::string&  pathLoadMap()      { return getInstance().path_LoadMap; }
+    static std::string&  pathSaveMap()      { return getInstance().path_SaveMap; }
+
     static int&     imgWidth()  { return getInstance().img_width; }
     static int&     imgHeight()       { return getInstance().img_height; }
     static void     setImgWidthHeight(int w, int h)  { getInstance().img_width = w; getInstance().img_height = h;}
@@ -143,6 +147,9 @@ public:
     static bool&    fastMatching()      { return getInstance().fast_matching; }
     static bool&    hasRefinement()     { return getInstance().has_refinement; }
     static bool&    multithreadSLAM()   { return getInstance().mutithread_slam; }
+
+    bool bIsRelocalizationMode;
+    std::string path_LoadMap, path_SaveMap;
 
     int img_width;
     int img_height;

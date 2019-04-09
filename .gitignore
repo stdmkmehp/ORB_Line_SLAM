@@ -21,7 +21,7 @@ Examples/ROS/ORB_Line_SLAM2/Stereo_compressed
 Examples/ROS/ORB_Line_SLAM2/build/
 Examples/Stereo/stereo_euroc
 Examples/Stereo/stereo_kitti
-Examples/PlaceRecognition/
+Examples/PlaceRecognition/placeRecognition
 KeyFrameTrajectory.txt
 KeyFrameTrajectory_TUM_Format.txt
 FrameTrajectory_TUM_Format.txt
@@ -37,11 +37,12 @@ Thirdparty/line_descriptor/build/
 Vocabulary/ORBvoc.txt
 Vocabulary/LSDvoc.txt
 Vocabulary/FLDvoc.txt
-Vocabulary/LSvoc.txt.tar.gz
 Vocabulary/mapir_fld.yml
 Vocabulary/mapir_lsd.yml
 Vocabulary/mapir_orb.yml
+Vocabulary/PLvoc.tar.gz
 build/
+.vscode/
 *~
 lib/
 

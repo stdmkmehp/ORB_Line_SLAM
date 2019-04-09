@@ -24,11 +24,15 @@
 #include "MapPoint.h"
 #include "MapLine.h"
 #include "KeyFrame.h"
+#include "KeyFrameDatabase.h"
+#include "InitKeyFrame.h"
+#include "SystemSetting.h"
+#include "Converter.h"
 #include <set>
 
 #include <mutex>
 
-
+#define HasLine
 
 namespace ORB_SLAM2
 {
@@ -36,6 +40,9 @@ namespace ORB_SLAM2
 class MapPoint;
 class MapLine;
 class KeyFrame;
+class KeyFrameDatabase;
+class SystemSetting;
+class InitKeyFrame;
 
 class Map
 {
@@ -64,8 +71,16 @@ public:
     long unsigned  KeyFramesInMap();
 
     long unsigned int GetMaxKFid();
+    long unsigned int GetMaxMPid();
+    long unsigned int GetMaxFid();
 
     void clear();
+
+	void Save(const string& filename);
+    void Load(const string& filename, SystemSetting* mySystemSetting, KeyFrameDatabase* KFDB);
+    // 分段建图的载入
+    void Load(const string& filename, SystemSetting* mySystemSetting, KeyFrameDatabase* KFDB, Eigen::Isometry3d transforms, int &MapPointCount, int &KeyFrameCount, int &FrameCount, int &FrameNow);
+    void EraseUnObs();
 
     std::vector<KeyFrame*> mvpKeyFrameOrigins;
 
@@ -77,8 +92,13 @@ public:
 
 protected:
     std::set<MapPoint*> mspMapPoints;
+    std::set<MapPoint*> mspMapPoints_each;
     std::set<MapLine*> mspMapLines;
     std::set<KeyFrame*> mspKeyFrames;
+
+	std::map<unsigned long int, MapPoint*> mmpnIdx2MapPoints;
+	std::map<unsigned long int, MapLine*> mmpnIdx2MapLines;
+    std::map<unsigned long int, unsigned long int>mNewId2OldId;
 
     std::vector<MapPoint*> mvpReferenceMapPoints;
     std::vector<MapLine*> mvpReferenceMapLines;
@@ -89,6 +109,15 @@ protected:
     int mnBigChangeIdx;
 
     std::mutex mMutexMap;
+
+    void SaveMapPoint(ofstream& f, MapPoint* mp);
+    MapPoint* LoadMapPoint(ifstream& f);
+    void SaveMapLine(ofstream& f, MapLine* ml);
+    MapLine* LoadMapLine(ifstream& f);
+    void SaveKeyFrame(ofstream& f, KeyFrame* kf);
+    KeyFrame* LoadKeyFrame(ifstream& f, SystemSetting* mySystemSetting, KeyFrameDatabase* KFDB);
+    KeyFrame* LoadKeyFrame( ifstream &f, SystemSetting* mySystemSetting, KeyFrameDatabase* KFDB, Eigen::Isometry3d transforms, int &MapPointCount, int &KeyFrameCount, int &FrameCount, int &FrameNow);
+    void GetMapPointsIdx();
 };
 
 } //namespace ORB_SLAM

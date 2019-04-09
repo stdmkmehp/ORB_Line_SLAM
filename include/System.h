@@ -124,6 +124,8 @@ public:
 
 private:
 
+    SystemSetting* mpSystemSetting;
+
     // Input sensor
     eSensor mSensor;
 

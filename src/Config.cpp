@@ -25,6 +25,10 @@ using namespace std;
 
 Config::Config()
 {
+    bIsRelocalizationMode = false;
+    path_LoadMap = "";
+    path_SaveMap = "";
+
     img_width = 0;
     img_height = 0;
 
@@ -197,6 +201,10 @@ void Config::loadFromFile( const string &strSettingPath )
 {
     cv::FileStorage fSettings(strSettingPath, cv::FileStorage::READ);
 
+    Config::isRelocalizationMode() = loadSafe(fSettings, "RelocalizationMode", Config::isRelocalizationMode());
+    Config::pathLoadMap() = loadSafe(fSettings, "PathLoadMap", Config::pathLoadMap());
+    Config::pathSaveMap() = loadSafe(fSettings, "PathSaveMap", Config::pathSaveMap());
+
     Config::imgWidth() = loadSafe(fSettings, "Camera.width", Config::imgWidth());
     Config::imgHeight() = loadSafe(fSettings, "Camera.height", Config::imgHeight());
 
@@ -286,8 +294,10 @@ void Config::loadFromFile( const string &strSettingPath )
     Config::lambdaLbaK() = loadSafe(fSettings, "lambda_lba_k", Config::lambdaLbaK());
     Config::maxItersLba() = loadSafe(fSettings, "max_iters_lba", Config::maxItersLba());
 
-    // Config::dbowVocP() = fSettings["vocabulary_p"]; //loadSafe(fSettings, "vocabulary_p", Config::dbowVocP());
-    // Config::dbowVocL() = fSettings["vocabulary_l"]; //loadSafe(fSettings, "vocabulary_l", Config::dbowVocL());
+    Config::dbowVocP() = loadSafe(fSettings, "vocabulary_p", Config::dbowVocP());
+    Config::dbowVocL() = loadSafe(fSettings, "vocabulary_l", Config::dbowVocL());
+    // Config::dbowVocP() = fSettings["vocabulary_p"].string();
+    // Config::dbowVocL() = std::string(fSettings["vocabulary_l"]);
 
     Config::lcMat() = loadSafe(fSettings, "lc_mat", Config::lcMat());
     Config::lcRes() = loadSafe(fSettings, "lc_res", Config::lcRes());

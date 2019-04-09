@@ -30,6 +30,18 @@ long unsigned int MapLine::nNextId=0;
 
 mutex MapLine::mGlobalMutex;
 
+MapLine::MapLine(const Eigen::Vector3d &sP, const Eigen::Vector3d &eP, Map* pMap):
+    mnFirstKFid(-1), mnFirstFrame(0), nObs(0), mnTrackReferenceForFrame(0),mnLastFrameSeen(0),
+    mpRefKF(static_cast<KeyFrame*>(NULL)), mnVisible(1), mnFound(1),
+    mbBad(false), mpReplaced(static_cast<MapLine*>(NULL)), mpMap(pMap)
+{
+    mWorldPos_sP = sP;
+    mWorldPos_eP = eP;
+    // mNormalVector = cv::Mat::zeros(3,1,CV_32F);
+
+    // MapLines can be created from Tracking and Local Mapping. This mutex avoid conflicts with id.
+    unique_lock<mutex> lock(mpMap->mMutexLineCreation);
+}
 
 MapLine::MapLine(const Eigen::Vector3d &sP, const Eigen::Vector3d &eP, KeyFrame* pRefKF, Map* pMap):
     mnFirstKFid(pRefKF->mnId), mnFirstFrame(pRefKF->mnFrameId), nObs(0), mnTrackReferenceForFrame(0),mnLastFrameSeen(0),
@@ -373,6 +385,11 @@ bool MapLine::IsInKeyFrame(KeyFrame *pKF)
 {
     unique_lock<mutex> lock(mMutexFeatures);
     return (mObservations.count(pKF));
+}
+
+KeyFrame* MapLine::SetReferenceKeyFrame(KeyFrame* RFKF)
+{
+    return mpRefKF = RFKF;
 }
 
 } //namespace ORB_SLAM

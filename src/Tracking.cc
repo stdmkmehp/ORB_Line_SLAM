@@ -297,8 +297,9 @@ void Tracking::Track()
     // Get Map Mutex -> Map cannot be changed
     unique_lock<mutex> lock(mpMap->mMutexMapUpdate);
 
-    if(mState==NOT_INITIALIZED)
+    if(mState==NOT_INITIALIZED && mpMap->GetMaxKFid() == 0)
     {
+
         if(mSensor==System::STEREO || mSensor==System::RGBD)
             StereoInitialization();
         else
@@ -308,6 +309,23 @@ void Tracking::Track()
 
         if(mState!=OK)
             return;
+    }
+    else if(mState==NOT_INITIALIZED && mpMap->GetMaxKFid() > 0)
+    {
+
+        if(mSensor==System::STEREO || mSensor==System::RGBD)
+            StereoInitializationWithMap();
+        else
+        {
+            cout << "Not done yet" << endl;
+            //MonocularInitializationWithMap();
+        }
+
+        mpFrameDrawer->Update(this);
+
+        if(mState!=OK)
+            return;
+            //mState = NOT_INITIALIZED;
     }
     else
     {
@@ -359,11 +377,11 @@ void Tracking::Track()
 
                     if(!mVelocity.empty())
                     {
-                        bOK = TrackWithMotionModel();
+                        bOK = TrackWithMotionModelWithLine();
                     }
                     else
                     {
-                        bOK = TrackReferenceKeyFrame();
+                        bOK = TrackReferenceKeyFrameWithLine();
                     }
                 }
                 else
@@ -381,7 +399,7 @@ void Tracking::Track()
                     cv::Mat TcwMM;
                     if(!mVelocity.empty())
                     {
-                        bOKMM = TrackWithMotionModel();
+                        bOKMM = TrackWithMotionModelWithLine();
                         vpMPsMM = mCurrentFrame.mvpMapPoints;
                         vbOutMM = mCurrentFrame.mvbOutlier;
                         TcwMM = mCurrentFrame.mTcw.clone();
@@ -548,6 +566,60 @@ void Tracking::Track()
         mlbLost.push_back(mState==LOST);
     }
 
+}
+
+void Tracking::StereoInitializationWithMap()
+{
+   if(mCurrentFrame.N>500)
+    {
+        // Set Frame pose to the origin
+        mCurrentFrame.SetPose(cv::Mat::eye(4,4,CV_32F));
+
+        // Create KeyFrame;
+        KeyFrame* pKFini = new KeyFrame(mCurrentFrame,mpMap,mpKeyFrameDB);
+
+        //Insert KeyFrame in the map
+        //mpMap->AddKeyFrame(pKFini);
+
+        //Create MapPoints and asscoiate to KeyFrame
+        for(int i=0; i<mCurrentFrame.N;i++)
+        {
+            float z = mCurrentFrame.mvDepth[i];
+            if(z>0)
+            {
+                cv::Mat x3D = mCurrentFrame.UnprojectStereo(i);
+                MapPoint* pNewMP = new MapPoint(x3D,pKFini,mpMap);
+                pNewMP->AddObservation(pKFini,i);
+                pKFini->AddMapPoint(pNewMP,i);
+                pNewMP->ComputeDistinctiveDescriptors();
+                pNewMP->UpdateNormalAndDepth();
+                mpMap->AddMapPoint(pNewMP);
+
+                mCurrentFrame.mvpMapPoints[i]=pNewMP;
+            }
+        }
+
+        cout << "New map created with " << mpMap->MapPointsInMap() << " points" << endl;
+
+        mpLocalMapper->InsertKeyFrame(pKFini);
+
+        mLastFrame = Frame(mCurrentFrame);
+        mnLastKeyFrameId = mCurrentFrame.mnId;
+        mpLastKeyFrame = pKFini;
+
+        mvpLocalKeyFrames.push_back(pKFini);
+        mvpLocalMapPoints=mpMap->GetAllMapPoints();
+        mpReferenceKF = pKFini;
+        mCurrentFrame.mpReferenceKF = pKFini;
+
+        //mpMap->SetReferenceMapPoints(mvpLocalMapPoints);
+
+        //mpMap->mvpKeyFrameOrigins.push_back(pKFini);
+
+        mpMapDrawer->SetCurrentCameraPose(mCurrentFrame.mTcw);
+
+        mState=OK;
+    }
 }
 
 void Tracking::StereoInitialization()
@@ -856,7 +928,7 @@ bool Tracking::TrackReferenceKeyFrame()
     mCurrentFrame.mvpMapPoints = vpMapPointMatches;
     mCurrentFrame.SetPose(mLastFrame.mTcw);
 
-    fill(mCurrentFrame.mvbOutlier.begin(),mCurrentFrame.mvbOutlier.end(),false);
+    //fill(mCurrentFrame.mvbOutlier.begin(),mCurrentFrame.mvbOutlier.end(),false);
     Optimizer::PoseOptimization(&mCurrentFrame);
 
     // Discard outliers
@@ -1013,7 +1085,7 @@ void Tracking::UpdateLastFrame()
 
     mLastFrame.SetPose(Tlr*pRef->GetPose());
 
-//    if(mnLastKeyFrameId==mLastFrame.mnId || mSensor==System::MONOCULAR)
+    // if(mnLastKeyFrameId==mLastFrame.mnId || mSensor==System::MONOCULAR)
     if(mnLastKeyFrameId==mLastFrame.mnId || mSensor==System::MONOCULAR || !mbOnlyTracking)
         return;
 
@@ -1165,7 +1237,7 @@ bool Tracking::TrackWithMotionModel()
     if(nmatches<20)
         return false;
 
-    fill(mCurrentFrame.mvbOutlier.begin(),mCurrentFrame.mvbOutlier.end(),false);
+    //fill(mCurrentFrame.mvbOutlier.begin(),mCurrentFrame.mvbOutlier.end(),false);
     // Optimize frame pose with all matches
     Optimizer::PoseOptimization(&mCurrentFrame);
 
@@ -1460,7 +1532,6 @@ bool Tracking::TrackLocalMap()
     UpdateLocalMap();
 
     SearchLocalPointsAndLines();
-//return true;
 
     mCurrentFrame.SetprevInformation(mLastFrame.mTcw, mLastFrame.DT_cov, mLastFrame.err_norm);      // FIXME
 
@@ -1621,10 +1692,10 @@ bool Tracking::NeedNewKeyFrame()
     const bool c2 = ((mnMatchesInliers<nRefMatches*thRefRatio|| bNeedToInsertClose) && mnMatchesInliers>15);
     const bool c2_l = ((mnMatchesInliers_l<nRefMatches_l*thRefRatio_l|| bNeedToInsertClose_l) && mnMatchesInliers_l>10);
 
-//    if(c1c_l || c2_l) {
-//        cout<<"[Debug] Insert new KeyFrame based on lines.\t";
-//        cout<<mnMatchesInliers_l<<" "<<nRefMatches_l<<" "<<bNeedToInsertClose_l<<endl;
-//    }
+    // if(c1c_l || c2_l) {
+    //     cout<<"[Debug] Insert new KeyFrame based on lines.\t";
+    //     cout<<mnMatchesInliers_l<<" "<<nRefMatches_l<<" "<<bNeedToInsertClose_l<<endl;
+    // }
 
     // if((c1a||c1b||c1c)&&c2)
     if((c1a||c1b||c1c||c1c_l)&&(c2||c2_l))
@@ -1661,7 +1732,7 @@ void Tracking::CreateNewKeyFrame()
 
     KeyFrame* pKF = new KeyFrame(mCurrentFrame,mpMap,mpKeyFrameDB);
 
-//    cout<<"[Debug] Create New KeyFrame "<<pKF->mnId<<endl;
+    // cout<<"[Debug] Create New KeyFrame "<<pKF->mnId<<endl;
 
     mpReferenceKF = pKF;
     mCurrentFrame.mpReferenceKF = pKF;
@@ -1917,13 +1988,13 @@ void Tracking::SearchLocalPointsAndLines()
         // check for orientation and position in image
         if(true) {
             // check for orientation
-//            double theta = mCurrentFrame.mvKeysUn_Line[i2].angle - pML->mnTrackangle;
-//            if(theta<-M_PI) theta+=2*M_PI;
-//            else if(theta>M_PI) theta-=2*M_PI;
-//            if(fabs(theta)>deltaAngle) {
-//                matches_12[i1] = -1;
-//                continue;
-//            }
+            // double theta = mCurrentFrame.mvKeysUn_Line[i2].angle - pML->mnTrackangle;
+            // if(theta<-M_PI) theta+=2*M_PI;
+            // else if(theta>M_PI) theta-=2*M_PI;
+            // if(fabs(theta)>deltaAngle) {
+            //     matches_12[i1] = -1;
+            //     continue;
+            // }
 
             // check for position in image
             const float& sX_curr = mCurrentFrame.mvKeysUn_Line[i2].startPointX;
