@@ -118,8 +118,11 @@ int main(int argc, char **argv)
         totaltime+=vTimesTrack[ni];
     }
     cout << "-------" << endl << endl;
+    cout << "min tracking time: " << vTimesTrack.front() << endl;
+    cout << "max tracking time: " << vTimesTrack.back() << endl;
     cout << "median tracking time: " << vTimesTrack[nImages/2] << endl;
     cout << "mean tracking time: " << totaltime/nImages << endl;
+    cout << "-------" << endl << endl;
 
     // Save camera trajectory
     SLAM.SaveTrajectoryKITTI("CameraTrajectory.txt");

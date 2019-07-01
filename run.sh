@@ -1,0 +1,24 @@
+echo "=================== 00 ==============" &&
+./Examples/PL/PL_stereo_kitti Vocabulary/ORBvoc.txt Examples/PL/PL_KITTI00-02.yaml ~/dataset/kitti/sequences/00/ &&
+echo "=================== 01 ==============" &&
+./Examples/PL/PL_stereo_kitti Vocabulary/ORBvoc.txt Examples/PL/PL_KITTI00-02.yaml ~/dataset/kitti/sequences/01/ &&
+echo "=================== 02 ==============" &&
+./Examples/PL/PL_stereo_kitti Vocabulary/ORBvoc.txt Examples/PL/PL_KITTI00-02.yaml ~/dataset/kitti/sequences/02/ &&
+echo "=================== 03 ==============" &&
+./Examples/PL/PL_stereo_kitti Vocabulary/ORBvoc.txt Examples/PL/PL_KITTI03.yaml ~/dataset/kitti/sequences/03/ &&
+echo "=================== 04 ==============" &&
+./Examples/PL/PL_stereo_kitti Vocabulary/ORBvoc.txt Examples/PL/PL_KITTI04-12.yaml ~/dataset/kitti/sequences/04/ &&
+echo "=================== 05 ==============" &&
+./Examples/PL/PL_stereo_kitti Vocabulary/ORBvoc.txt Examples/PL/PL_KITTI04-12.yaml ~/dataset/kitti/sequences/05/ &&
+echo "=================== 06 ==============" &&
+./Examples/PL/PL_stereo_kitti Vocabulary/ORBvoc.txt Examples/PL/PL_KITTI04-12.yaml ~/dataset/kitti/sequences/06/ &&
+echo "=================== 07 ==============" &&
+./Examples/PL/PL_stereo_kitti Vocabulary/ORBvoc.txt Examples/PL/PL_KITTI04-12.yaml ~/dataset/kitti/sequences/07/ &&
+echo "=================== 08 ==============" &&
+./Examples/PL/PL_stereo_kitti Vocabulary/ORBvoc.txt Examples/PL/PL_KITTI04-12.yaml ~/dataset/kitti/sequences/08/ &&
+echo "=================== 09 ==============" &&
+./Examples/PL/PL_stereo_kitti Vocabulary/ORBvoc.txt Examples/PL/PL_KITTI04-12.yaml ~/dataset/kitti/sequences/09/ &&
+echo "=================== 10 ==============" &&
+./Examples/PL/PL_stereo_kitti Vocabulary/ORBvoc.txt Examples/PL/PL_KITTI04-12.yaml ~/dataset/kitti/sequences/10/ &&
+echo "=================== 11 ==============" &&
+./Examples/PL/PL_stereo_kitti Vocabulary/ORBvoc.txt Examples/PL/PL_KITTI04-12.yaml ~/dataset/kitti/sequences/11/

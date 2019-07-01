@@ -127,22 +127,35 @@ void KeyFrame::GenerateWordParis(map<WordId,list<WordId>>& wordPairs)
         vwid[i] = mpORBvocabulary->transform(mDescriptors.row(i));
 
     KDTree<point_kdtree> kdtree(vpkdt);
-    for(int i=0; i<N; ++i)
+    for(int i=0; i<N_l; ++i)
     {
         list<WordId> lwid;
-        vector<int> radIndices = kdtree.radiusSearch(vpkdt[i], vpkdt[i].radius());
-        for(auto it=radIndices.begin(),itend=radIndices.end(); it!=itend; ++it)
-            lwid.push_back(vwid[*it]);
+        // vector<int> radIndices = kdtree.radiusSearch(vpkdt[i], vpkdt[i].radius());
+                point_kdtree midpoint(mvKeysUn_Line[i].pt);
+        vector<int> radIndices = kdtree.knnSearch(midpoint, 5);
+        for(auto it=radIndices.begin(),itend=radIndices.end(); it!=itend; ++it) {
+            
+            Vector3d sp_l; sp_l << mvKeysUn_Line[i].startPointX, mvKeysUn_Line[i].startPointY, 1.0;
+            Vector3d ep_l; ep_l << mvKeysUn_Line[i].endPointX,   mvKeysUn_Line[i].endPointY,   1.0;
+            Vector3d le_l; le_l << sp_l.cross(ep_l); le_l = le_l / std::sqrt( le_l(0)*le_l(0) + le_l(1)*le_l(1) );
 
-        map<WordId,list<WordId>>::iterator itwid = wordPairs.find(vwid[i]);
+            cv::Point2f pt_pair = mvKeysUn[*it].pt;
+            float dist = le_l(0) * pt_pair.x + le_l(1) * pt_pair.y + le_l(2);
+            if(fabs(dist)<mvKeysUn[*it].size) {
+                lwid.push_back(vwid[*it]);
+            }
+        }
+
+        WordId linewordid = mpORBvocabulary->transform(mDescriptors_l.row(i));
+        map<WordId,list<WordId>>::iterator itwid = wordPairs.find(linewordid);
         if(itwid!=wordPairs.end())
         {
             list<WordId>& lwid0 = itwid->second;
             lwid0.insert(lwid0.end(),lwid.begin(),lwid.end());
         }
-        else wordPairs.insert(make_pair(vwid[i],lwid));
+        else wordPairs.insert(make_pair(linewordid,lwid));
     }
-    mwordPairs = wordPairs;
+    // mwordPairs = wordPairs;
 }
 
 void KeyFrame::SetPose(const cv::Mat &Tcw_)

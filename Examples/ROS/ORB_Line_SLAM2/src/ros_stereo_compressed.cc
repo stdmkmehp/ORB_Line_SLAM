@@ -35,6 +35,7 @@
 #include"../../../include/System.h"
 
 using namespace std;
+    vector<float> vTimesTrack;
 
 class ImageGrabber
 {
@@ -50,6 +51,7 @@ public:
 
 int main(int argc, char **argv)
 {
+    vTimesTrack.reserve(5000);
     ros::init(argc, argv, "ORB_Line_SLAM2");
     ros::start();
 
@@ -127,6 +129,18 @@ int main(int argc, char **argv)
 
     ros::shutdown();
 
+
+    sort(vTimesTrack.begin(),vTimesTrack.end());
+    float totaltime = 0;
+    int nImages = vTimesTrack.size();
+    for(int ni=0; ni<nImages; ni++)
+        totaltime+=vTimesTrack[ni];
+    cout << "-------" << endl << endl;
+    cout << "min loopclosing time: " << vTimesTrack.front() << endl;
+    cout << "max loopclosing time: " << vTimesTrack.back() << endl;
+    cout << "median loopclosing time: " << vTimesTrack[nImages/2] << endl;
+    cout << "mean loopclosing time: " << totaltime/nImages << endl;
+    cout << "-------" << endl << endl;
     return 0;
 }
 
@@ -142,6 +156,7 @@ cv::Mat matFromImage(const sensor_msgs::CompressedImageConstPtr& source)
 void ImageGrabber::GrabStereo(const sensor_msgs::CompressedImageConstPtr& msgLeft,const sensor_msgs::CompressedImageConstPtr& msgRight)
 {
     try{
+    	std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
         cv::Mat imLeft = matFromImage(msgLeft);
         cv::Mat imRight = matFromImage(msgRight);
         if(do_rectify)
@@ -154,6 +169,9 @@ void ImageGrabber::GrabStereo(const sensor_msgs::CompressedImageConstPtr& msgLef
         {
             mpSLAM->TrackStereo(imLeft,imRight,msgLeft->header.stamp.toSec());
         }
+        std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
+        double ttrack= std::chrono::duration_cast<std::chrono::duration<double> >(t2 - t1).count();
+        vTimesTrack.push_back(ttrack);
     }
     catch (...)
     {

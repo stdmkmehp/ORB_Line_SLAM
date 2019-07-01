@@ -668,15 +668,15 @@ bool Optimizer::PoseOptimizationWithLine(Frame *pFrame)
         DT_ = DT;                                          // !!! DT, not DT_
         gaussNewtonOptimization(DT_,DT_cov,err,Config::maxItersRef(), pFrame);
         removeOutliers(DT_, pFrame);
-//        DT_ = DT;
-//        gaussNewtonOptimization(DT_,DT_cov,err,Config::maxItersRef(), pFrame);
-//        removeOutliers(DT_, pFrame);
-        DT_ = DT;
-        gaussNewtonOptimizationRobust(DT_,DT_cov,err,Config::maxItersRef(), pFrame);
-        removeOutliers(DT_, pFrame);
-        DT_ = DT;
-        gaussNewtonOptimization(DT_,DT_cov,err,Config::maxItersRef(), pFrame);
-        removeOutliers(DT_, pFrame);
+        // DT_ = DT;
+        // gaussNewtonOptimization(DT_,DT_cov,err,Config::maxItersRef(), pFrame);
+        // removeOutliers(DT_, pFrame);
+        // DT_ = DT;
+        // gaussNewtonOptimizationRobust(DT_,DT_cov,err,Config::maxItersRef(), pFrame);
+        // removeOutliers(DT_, pFrame);
+        // DT_ = DT;
+        // gaussNewtonOptimization(DT_,DT_cov,err,Config::maxItersRef(), pFrame);
+        // removeOutliers(DT_, pFrame);
 
         DT = DT_;
 

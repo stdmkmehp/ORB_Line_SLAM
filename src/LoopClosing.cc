@@ -58,11 +58,15 @@ void LoopClosing::Run()
 {
     mbFinished =false;
 
+    vector<float> vTimesTrack;
+    vTimesTrack.reserve(5000);
     while(1)
     {
         // Check if there are keyframes in the queue
         if(CheckNewKeyFrames())
         {
+            std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+
             // Detect loop candidates and check covisibility consistency
             if(DetectLoop())
             {
@@ -74,6 +78,10 @@ void LoopClosing::Run()
                    CorrectLoop();
                }
             }
+
+            std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
+            double ttrack= std::chrono::duration_cast<std::chrono::duration<double> >(t2 - t1).count();
+            vTimesTrack.push_back(ttrack);
         }       
 
         ResetIfRequested();
@@ -83,6 +91,18 @@ void LoopClosing::Run()
 
         usleep(5000);
     }
+
+    sort(vTimesTrack.begin(),vTimesTrack.end());
+    float totaltime = 0;
+    int nImages = vTimesTrack.size();
+    for(int ni=0; ni<nImages; ni++)
+        totaltime+=vTimesTrack[ni];
+    cout << "-------" << endl << endl;
+    cout << "min loopclosing time: " << vTimesTrack.front() << endl;
+    cout << "max loopclosing time: " << vTimesTrack.back() << endl;
+    cout << "median loopclosing time: " << vTimesTrack[nImages/2] << endl;
+    cout << "mean loopclosing time: " << totaltime/nImages << endl;
+    cout << "-------" << endl << endl;
 
     SetFinish();
 }

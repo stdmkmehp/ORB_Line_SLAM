@@ -46,8 +46,8 @@ KeyFrameDatabase::KeyFrameDatabase(const ORBVocabulary &voc, const LineVocabular
 void KeyFrameDatabase::add(KeyFrame *pKF)
 {
     unique_lock<mutex> lock(mMutex);
-//map<WordId,list<WordId>> wordPairs;
-//pKF->GenerateWordParis(wordPairs);
+map<WordId,list<WordId>> wordPairs;
+pKF->GenerateWordParis(wordPairs);
     for(DBoW2::BowVector::const_iterator vit= pKF->mBowVec.begin(), vend=pKF->mBowVec.end(); vit!=vend; vit++)
         mvInvertedFile[vit->first].push_back(pKF);
     for(DBoW2::BowVector::const_iterator vit= pKF->mBowVec_l.begin(), vend=pKF->mBowVec_l.end(); vit!=vend; vit++)
