@@ -25,6 +25,7 @@ using namespace std;
 
 Config::Config()
 {
+    bUseIMU = false;
     bIsRelocalizationMode = false;
     path_LoadMap = "";
     path_SaveMap = "";
@@ -202,6 +203,7 @@ void Config::loadFromFile( const string &strSettingPath )
     cv::FileStorage fSettings(strSettingPath, cv::FileStorage::READ);
 
     Config::isRelocalizationMode() = loadSafe(fSettings, "RelocalizationMode", Config::isRelocalizationMode());
+    Config::useIMU() = loadSafe(fSettings, "UseIMU", Config::useIMU());
     Config::pathLoadMap() = loadSafe(fSettings, "PathLoadMap", Config::pathLoadMap());
     Config::pathSaveMap() = loadSafe(fSettings, "PathSaveMap", Config::pathSaveMap());
 

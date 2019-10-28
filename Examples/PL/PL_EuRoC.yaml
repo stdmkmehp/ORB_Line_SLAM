@@ -1,5 +1,6 @@
 %YAML:1.0
 
+UseIMU: 1
 RelocalizationMode: 0
 PathLoadMap: "/home/lab404/Documents/map_euroc"
 PathSaveMap: "/home/lab404/Documents/map"

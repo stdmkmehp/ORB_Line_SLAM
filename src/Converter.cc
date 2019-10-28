@@ -91,6 +91,11 @@ cv::Mat Converter::toCvMat(const Eigen::Matrix<double,3,1> &m)
     return cvMat.clone();
 }
 
+cv::Mat Converter::toCvMat(const Eigen::Isometry3d &T)
+{
+    return Converter::toCvMat(T.matrix());
+}
+
 cv::Mat Converter::toInvCvMat(const cv::Mat &T_cvMat)
 {
     cv::Mat T_inv = cv::Mat::eye(4,4,T_cvMat.type());
@@ -201,6 +206,17 @@ Eigen::Matrix<double,4,4> Converter::toInvMatrix4d(const cv::Mat &T_cvMat)
 //    T_inv.block<3,1>(0,3) = -R.transpose()*t;
 //    return T_inv;
 }
+
+Eigen::Isometry3d Converter::toIsometry3d(const Eigen::Matrix<double,4,4> &T)
+{
+    return Eigen::Isometry3d(T);
+}
+
+Eigen::Isometry3d Converter::toIsometry3d(const cv::Mat &T)
+{
+    return Eigen::Isometry3d( Converter::toMatrix4d(T) );
+}
+
 
 std::vector<float> Converter::toQuaternion(const cv::Mat &M)
 {

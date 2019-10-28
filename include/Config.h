@@ -36,6 +36,7 @@ public:
     static void loadFromFile( const std::string &config_file );
     static Config& getInstance();
 
+    static bool&    useIMU()    { return getInstance().bUseIMU; }
     static bool&    isRelocalizationMode()    { return getInstance().bIsRelocalizationMode; }
     static std::string&  pathLoadMap()      { return getInstance().path_LoadMap; }
     static std::string&  pathSaveMap()      { return getInstance().path_SaveMap; }
@@ -148,6 +149,7 @@ public:
     static bool&    hasRefinement()     { return getInstance().has_refinement; }
     static bool&    multithreadSLAM()   { return getInstance().mutithread_slam; }
 
+    bool bUseIMU;
     bool bIsRelocalizationMode;
     std::string path_LoadMap, path_SaveMap;
 

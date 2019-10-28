@@ -509,4 +509,11 @@ vector<cv::KeyPoint> System::GetTrackedKeyPointsUn()
     return mTrackedKeyPointsUn;
 }
 
+void System::setRosIO(RosIO* pRosIO, function<bool(double, Eigen::Isometry3d&)> f)
+{
+    assert(mpTracker != nullptr);
+    mpTracker->mpRosIO = pRosIO;
+    mpTracker->GetPosWithTime = f;
+}
+
 } //namespace ORB_SLAM

@@ -230,6 +230,8 @@ public:
     // Camera pose.
     cv::Mat mTcw;
     cv::Mat mTcw_prev;
+    Eigen::Isometry3d mTcw_vio;
+    bool bvio_reliable;
 
     // Current and Next Frame id.
     static long unsigned int nNextId;

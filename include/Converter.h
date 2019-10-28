@@ -45,6 +45,7 @@ public:
     static cv::Mat toCvMat(const Eigen::Matrix<double,4,4> &m);
     static cv::Mat toCvMat(const Eigen::Matrix3d &m);
     static cv::Mat toCvMat(const Eigen::Matrix<double,3,1> &m);
+    static cv::Mat toCvMat(const Eigen::Isometry3d &T);
     static cv::Mat toCvSE3(const Eigen::Matrix<double,3,3> &R, const Eigen::Matrix<double,3,1> &t);
     static cv::Mat toInvCvMat(const cv::Mat &T_cvMat);
     static cv::Mat toInvCvMat(const Eigen::Matrix<double,4,4> &T_eigenMtrx);
@@ -55,6 +56,9 @@ public:
     static Eigen::Matrix<double,4,4> toMatrix4d(const cv::Mat &T);
     static Eigen::Matrix<double,4,4> toInvMatrix4d(const cv::Mat &T_cvMat);
     static Eigen::Matrix<double,4,4> toInvMatrix4d(const Eigen::Matrix<double,4,4> &T_eigenMtrx);
+
+    static Eigen::Isometry3d toIsometry3d(const Eigen::Matrix<double,4,4> &T);
+    static Eigen::Isometry3d toIsometry3d(const cv::Mat &T);
 
     static std::vector<float> toQuaternion(const cv::Mat &M);
 

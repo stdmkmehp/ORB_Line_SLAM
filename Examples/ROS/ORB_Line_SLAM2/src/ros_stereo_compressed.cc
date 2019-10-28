@@ -29,6 +29,7 @@
 #include <message_filters/subscriber.h>
 #include <message_filters/time_synchronizer.h>
 #include <message_filters/sync_policies/approximate_time.h>
+#include "RosIO.h"
 
 #include<opencv2/core/core.hpp>
 
@@ -108,6 +109,7 @@ int main(int argc, char **argv)
     }
 
     ros::NodeHandle nh;
+    ORB_SLAM2::RosIO rosio(nh, &SLAM);
 
     message_filters::Subscriber<sensor_msgs::CompressedImage> left_sub(nh, "/camera/left", 1);
     message_filters::Subscriber<sensor_msgs::CompressedImage> right_sub(nh, "/camera/right", 1);
@@ -115,8 +117,10 @@ int main(int argc, char **argv)
     message_filters::Synchronizer<sync_pol> sync(sync_pol(10), left_sub,right_sub);
     sync.registerCallback(boost::bind(&ImageGrabber::GrabStereo,&igb,_1,_2));
 
-    ros::spin();
-
+    //ros::spin();
+    ros::MultiThreadedSpinner spinner(2);
+    spinner.spin();
+    
     // Stop all threads
     SLAM.Shutdown();
 

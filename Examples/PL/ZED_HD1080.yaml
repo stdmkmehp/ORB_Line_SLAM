@@ -1,5 +1,6 @@
 %YAML:1.0
 
+UseIMU: 0
 RelocalizationMode: 0
 PathLoadMap: "/home/lab404/Documents/map_zed"
 PathSaveMap: "/home/lab404/Documents/map"

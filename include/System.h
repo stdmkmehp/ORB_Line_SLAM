@@ -45,6 +45,7 @@ class Map;
 class Tracking;
 class LocalMapping;
 class LoopClosing;
+class RosIO;
 
 class System
 {
@@ -121,6 +122,8 @@ public:
     int GetTrackingState();
     std::vector<MapPoint*> GetTrackedMapPoints();
     std::vector<cv::KeyPoint> GetTrackedKeyPointsUn();
+
+    void setRosIO(RosIO* pRosIO, function<bool(double, Eigen::Isometry3d&)> f);
 
 private:
 

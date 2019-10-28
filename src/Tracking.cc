@@ -34,7 +34,7 @@
 #include"PnPsolver.h"
 
 #include<iostream>
-
+#include<chrono>
 #include<mutex>
 
 
@@ -1273,6 +1273,10 @@ bool Tracking::TrackWithMotionModel()
 
 bool Tracking::TrackWithMotionModelWithLine()
 {
+    if(Config::useIMU()) {
+        return TrackWithVio();
+    }
+    
     // cout<<"[Debug] Calling TrackWithMotionModelWithLine(), mCurrentFrame.mnId:"<<mCurrentFrame.mnId<<endl;
 
     ORBmatcher matcher(0.9,true);
@@ -1513,6 +1517,286 @@ bool Tracking::TrackWithMotionModelWithLine()
     // cout<<"[Debug] Frame ID:"<<mCurrentFrame.mnId<<endl;
     // cout<<"[Debug] In TrackWithMotionModelWithLine(), After optimization nmatchesMap_p:"<<nmatchesMap_p<<", nmatchesMap_l:"<<nmatchesMap_l<<endl;
     // cout<<"\t Res.:"<<mCurrentFrame.err_norm<<", \tn_inliers_pt:"<<npt<<"("<<mCurrentFrame.n_inliers_pt<<"), \tn_inliers_ls:"<<nls<<"("<<mCurrentFrame.n_inliers_ls<<")"<<endl;
+    if(mbOnlyTracking)
+    {
+        mbVO = nmatchesMap_p<10;
+        return mCurrentFrame.n_inliers_pt>20;
+    }
+
+    return nmatchesMap_p>=10;// && nmatchesMap_l>=5;
+}
+
+bool Tracking::TrackWithVio()
+{
+    // cout<<"[Debug] Calling TrackWithVio(), mCurrentFrame.mnId:"<<mCurrentFrame.mnId<<endl;
+    cout<<"[Debug] Calling TrackWithVio(), mCurrentFrame.mnId:"<<mCurrentFrame.mnId<<endl;
+
+    ORBmatcher matcher(0.9,true);
+
+    // Update last frame pose according to its reference keyframe
+    // Create "visual odometry" points if in Localization Mode
+    UpdateLastFrame();
+
+    mCurrentFrame.SetPose(mVelocity*mLastFrame.mTcw);
+    mCurrentFrame.SetprevInformation(mLastFrame.mTcw, mLastFrame.DT_cov, mLastFrame.err_norm);      // FIXME
+
+    // Project points seen in previous frame
+    int th;
+    if(mSensor!=System::STEREO)
+        th=15;
+    else
+        th=7;
+
+    map<int, int> match12;
+    fill(mCurrentFrame.mvpMapPoints.begin(),mCurrentFrame.mvpMapPoints.end(),static_cast<MapPoint*>(NULL));
+    mCurrentFrame.n_inliers_pt = matcher.SearchByProjection(mCurrentFrame,mLastFrame,th,mSensor==System::MONOCULAR, match12);
+
+    // If few matches, uses a wider window search
+    if(mCurrentFrame.n_inliers_pt<20)
+    {
+        fill(mCurrentFrame.mvpMapPoints.begin(),mCurrentFrame.mvpMapPoints.end(),static_cast<MapPoint*>(NULL));
+        mCurrentFrame.n_inliers_pt = matcher.SearchByProjection(mCurrentFrame,mLastFrame,2*th,mSensor==System::MONOCULAR, match12);
+    }
+
+    // line segments f2f tracking
+    fill(mCurrentFrame.mvpMapLines.begin(),mCurrentFrame.mvpMapLines.end(),static_cast<MapLine*>(NULL));
+    std::vector<int> matches_12;
+    match(mLastFrame.mDescriptors_Line, mCurrentFrame.mDescriptors_Line, Config::minRatio12L(), matches_12);
+
+    const double deltaAngle = M_PI/8.0;
+    const double deltaWidth = (mCurrentFrame.mnMaxX-mCurrentFrame.mnMinX)*0.1;
+    const double deltaHeight = (mCurrentFrame.mnMaxY-mCurrentFrame.mnMinY)*0.1;
+    mCurrentFrame.n_inliers_ls = 0;
+    const int nmatches_12 = matches_12.size();
+    for (int i1 = 0; i1 < nmatches_12; ++i1) {
+        if(!mLastFrame.mvpMapLines[i1]) continue;
+        const int i2 = matches_12[i1];
+        if (i2 < 0) continue;
+        if(mCurrentFrame.mvDisparity_l[i2].first<0 || mCurrentFrame.mvDisparity_l[i2].second<0) continue;   //FIXME: optimization with mono line features
+
+        // check for orientation and position in image
+        if(true) {
+            // check for orientation
+            double theta = mCurrentFrame.mvKeysUn_Line[i2].angle-mLastFrame.mvKeysUn_Line[i1].angle;
+            if(theta<-M_PI) theta+=2*M_PI;
+            else if(theta>M_PI) theta-=2*M_PI;
+            if(fabs(theta)>deltaAngle) {
+                matches_12[i1] = -1;
+                continue;
+            }
+            // check for position in image
+            const float& sX_curr = mCurrentFrame.mvKeysUn_Line[i2].startPointX;
+            const float& sX_last = mLastFrame.mvKeysUn_Line[i1].startPointX;
+            const float& sY_curr = mCurrentFrame.mvKeysUn_Line[i2].startPointY;
+            const float& sY_last = mLastFrame.mvKeysUn_Line[i1].startPointY;
+            const float& eX_curr = mCurrentFrame.mvKeysUn_Line[i2].endPointX;
+            const float& eX_last = mLastFrame.mvKeysUn_Line[i1].endPointX;
+            const float& eY_curr = mCurrentFrame.mvKeysUn_Line[i2].endPointY;
+            const float& eY_last = mLastFrame.mvKeysUn_Line[i1].endPointY;
+            if(fabs(sX_curr-sX_last)>deltaWidth || fabs(eX_curr-eX_last)>deltaWidth || fabs(sY_curr-sY_last)>deltaHeight || fabs(eY_curr-eY_last)>deltaHeight )
+            {
+                matches_12[i1] = -1;
+                continue;
+            }
+        }
+
+        mCurrentFrame.mvpMapLines[i2] = mLastFrame.mvpMapLines[i1];
+        ++mCurrentFrame.n_inliers_ls;
+    }
+
+    // Draw matched point features
+    if(false)
+    {
+        cv::Mat lastIm = mImGray_last.clone();
+        cv::Mat curIm = mImGray.clone();
+        cvtColor(lastIm,lastIm,CV_GRAY2BGR);
+        cvtColor(curIm,curIm,CV_GRAY2BGR);
+        random_device rnd_dev;
+        mt19937 rnd(rnd_dev());
+        uniform_int_distribution<int> color_dist(0, 255);
+        vector<cv::Scalar> tmp;
+        for (auto it=match12.begin(),itend=match12.end(); it!=itend; ++it)
+        {
+            cv::Scalar color = Scalar(color_dist(rnd), color_dist(rnd), color_dist(rnd));
+            tmp.push_back(color);
+            int currIdx = it->first;
+            int lastIdx = it->second;
+            cv::circle(curIm, mCurrentFrame.mvKeysUn[currIdx].pt, 2, color, -1);
+            cv::circle(lastIm, mLastFrame.mvKeysUn[lastIdx].pt, 2, color, -1);
+        }
+        cv::Size sz1 = lastIm.size();
+        cv::Size sz2 = curIm.size();
+        cv::Mat im(sz1.height+sz2.height, sz1.width, CV_8UC3);
+        cv::Mat imtop(im, Rect(0, 0, sz1.width, sz1.height));
+        cv::Mat imbottom(im, Rect(0, sz1.height, sz2.width, sz2.height));
+        lastIm.copyTo(imtop);
+        curIm.copyTo(imbottom);
+        int colorId = 0;
+        for (auto it=match12.begin(),itend=match12.end(); it!=itend; ++it, ++colorId)
+        {
+            int currIdx = it->first;
+            int lastIdx = it->second;
+            cv::Point2f currp(mCurrentFrame.mvKeysUn[currIdx].pt.x,mCurrentFrame.mvKeysUn[currIdx].pt.y+sz1.height);
+            cv::line(im, mLastFrame.mvKeysUn[lastIdx].pt, currp, tmp[colorId], 1.0);
+        }
+        // cv::imwrite("/home/lab404/Documents/ORB_Line_SLAM/matchedPoints/"+to_string(mCurrentFrame.mnId)+".jpg",im);
+        cv::imshow("ORB_Line_SLAM2: Matched points", im);
+        cv::waitKey(1e3/30);
+    }
+    // Draw matched line features
+    if(false)
+    {
+        cv::Mat lastIm = mImGray_last.clone();
+        cv::Mat curIm = mImGray.clone();
+        cvtColor(lastIm,lastIm,CV_GRAY2BGR);
+        cvtColor(curIm,curIm,CV_GRAY2BGR);
+        random_device rnd_dev;
+        mt19937 rnd(rnd_dev());
+        uniform_int_distribution<int> color_dist(0, 255);
+        vector<cv::Scalar> tmp;
+        for (int i1 = 0; i1 < nmatches_12; ++i1)
+        {
+            cv::Scalar color = Scalar(color_dist(rnd), color_dist(rnd), color_dist(rnd));
+            tmp.push_back(color);
+            const int i2 = matches_12[i1];
+            if (i2 < 0) continue;
+            if(!mLastFrame.mvpMapLines[i1]) continue;
+            if(mLastFrame.mvbOutlier_Line[i1]) continue;
+
+            cv::Point2f sp, ep;
+            sp.x = int(mLastFrame.mvKeysUn_Line[i1].startPointX);
+            sp.y = int(mLastFrame.mvKeysUn_Line[i1].startPointY);
+            ep.x = int(mLastFrame.mvKeysUn_Line[i1].endPointX);
+            ep.y = int(mLastFrame.mvKeysUn_Line[i1].endPointY);
+            cv::line(lastIm, sp, ep, color, 2.0);
+
+            sp.x = int(mCurrentFrame.mvKeysUn_Line[i2].startPointX);
+            sp.y = int(mCurrentFrame.mvKeysUn_Line[i2].startPointY);
+            ep.x = int(mCurrentFrame.mvKeysUn_Line[i2].endPointX);
+            ep.y = int(mCurrentFrame.mvKeysUn_Line[i2].endPointY);
+            cv::line(curIm, sp, ep, color, 2.0);
+        }
+        cv::Size sz1 = lastIm.size();
+        cv::Size sz2 = curIm.size();
+        cv::Mat im(sz1.height+sz2.height, sz1.width, CV_8UC3);
+        cv::Mat imtop(im, Rect(0, 0, sz1.width, sz1.height));
+        cv::Mat imbottom(im, Rect(0, sz1.height, sz2.width, sz2.height));
+        lastIm.copyTo(imtop);
+        curIm.copyTo(imbottom);
+
+        for (int i1 = 0; i1 < nmatches_12; ++i1)
+        {
+            const int i2 = matches_12[i1];
+            if (i2 < 0) continue;
+            if(!mLastFrame.mvpMapLines[i1]) continue;
+            if(mLastFrame.mvbOutlier_Line[i1]) continue;
+
+            cv::Scalar color = tmp[i1];
+            cv::Point2f sp, ep;
+            sp.x = int(mLastFrame.mvKeysUn_Line[i1].startPointX);
+            sp.y = int(mLastFrame.mvKeysUn_Line[i1].startPointY);
+            ep.x = int(mLastFrame.mvKeysUn_Line[i1].endPointX);
+            ep.y = int(mLastFrame.mvKeysUn_Line[i1].endPointY);
+
+            cv::Point2f spc, epc;
+            spc.x = int(mCurrentFrame.mvKeysUn_Line[i2].startPointX);
+            spc.y = int(mCurrentFrame.mvKeysUn_Line[i2].startPointY)+sz1.height;
+            epc.x = int(mCurrentFrame.mvKeysUn_Line[i2].endPointX);
+            epc.y = int(mCurrentFrame.mvKeysUn_Line[i2].endPointY)+sz1.height;
+
+            cv::line(im, sp, spc, color, 1.0);
+            cv::line(im, ep, epc, color, 1.0);
+        }
+        // cv::imwrite("/home/lab404/Documents/ORB_Line_SLAM/matchedLines/"+to_string(mCurrentFrame.mnId)+".jpg",im);
+        cv::imshow("ORB_Line_SLAM2: Matched lines", im);
+        cv::waitKey(1e3/30);
+    }
+
+    if(mCurrentFrame.n_inliers_pt<20 && mCurrentFrame.n_inliers_ls<10) {
+        cout<<"[Debug] In TrackWithMotionModelWithLine(), mCurrentFrame's n_inliers_pt<20&&n_inliers_ls<10 -> return false"<<endl;
+        cout<<"     n_inliers_pt:"<<mCurrentFrame.n_inliers_pt<<" ,n_inliers_ls:"<<mCurrentFrame.n_inliers_ls<<endl;
+        return false;
+    }
+
+    mCurrentFrame.n_inliers = mCurrentFrame.n_inliers_ls + mCurrentFrame.n_inliers_pt;
+    // int nls = mCurrentFrame.n_inliers_ls;
+    // int npt = mCurrentFrame.n_inliers_pt;
+
+    // Optimizer::PoseOptimization(&mCurrentFrame); cout<<"PoseOptimization without Line"<<endl;
+    Optimizer::PoseOptimizationWithLine(&mCurrentFrame);
+
+
+    // codes up here are same with motionmodelwithline.
+
+
+    // 1. match points/lines with lastFrame
+    // mCurrentFrame.mvpMapPoints;
+    // mCurrentFrame.mvpMapLines;
+
+    // 2. get pose according to time stamp
+    Eigen::Isometry3d Twc_vio = Eigen::Isometry3d::Identity();
+    if(GetPosWithTime(mCurrentFrame.mTimeStamp, Twc_vio)) {
+        mCurrentFrame.bvio_reliable = true;
+        mCurrentFrame.mTcw_vio = Twc_vio.inverse();
+        if(mLastFrame.bvio_reliable) {
+            Eigen::Isometry3d Tcurlast = mCurrentFrame.mTcw_vio * mLastFrame.mTcw_vio.inverse();
+            Optimizer::removeOutliers(Tcurlast.matrix(), &mCurrentFrame);
+            mCurrentFrame.SetPose( Converter::toCvMat(Tcurlast * Converter::toIsometry3d(mLastFrame.mTcw)) );
+        }
+    }
+    else {
+        mCurrentFrame.bvio_reliable = false;
+        mCurrentFrame.mTcw_vio = Eigen::Isometry3d::Identity();
+	    printf("Tvio is not ready!\n");
+    }
+
+    // cout << "Twc_orb from orb is" << endl << Converter::toInvMatrix4d(mCurrentFrame.mTcw) << endl;
+    // cout << "Twc_vio from vio is" << endl << Twc_vio.matrix() << endl;
+    
+    // 3. calculate re-projection errors by projecting points/lines with posVio    
+    // discard outliers
+    // Note: mvbOutlier & mvbOutlier_Line are all false;
+    // Discard outliers
+    int nmatchesMap_p = 0;
+    for(int i =0; i<mCurrentFrame.N; i++)
+    {
+        if(mCurrentFrame.mvpMapPoints[i])
+        {
+            if(mCurrentFrame.mvbOutlier[i])
+            {
+                MapPoint* pMP = mCurrentFrame.mvpMapPoints[i];
+
+                mCurrentFrame.mvpMapPoints[i]=static_cast<MapPoint*>(NULL);
+                mCurrentFrame.mvbOutlier[i]=false;
+                pMP->mbTrackInView = false;
+                pMP->mnLastFrameSeen = mCurrentFrame.mnId;
+                // --mCurrentFrame.n_inliers_pt;
+                // --mCurrentFrame.n_inliers;
+            }
+            else if(mCurrentFrame.mvpMapPoints[i]->Observations()>0)
+                nmatchesMap_p++;
+        }
+    }
+    int nmatchesMap_l = 0;
+    for(int i =0; i<mCurrentFrame.N_l; i++)
+    {
+        if(mCurrentFrame.mvpMapLines[i])
+        {
+            if(mCurrentFrame.mvbOutlier_Line[i])
+            {
+                MapLine* pML = mCurrentFrame.mvpMapLines[i];
+
+                mCurrentFrame.mvpMapLines[i]=static_cast<MapLine*>(NULL);
+                mCurrentFrame.mvbOutlier_Line[i]=false;
+                pML->mbTrackInView = false;
+                pML->mnLastFrameSeen = mCurrentFrame.mnId;
+                // --mCurrentFrame.n_inliers_ls;
+                // --mCurrentFrame.n_inliers;
+            }
+            else if(mCurrentFrame.mvpMapLines[i]->Observations()>0)
+                nmatchesMap_l++;
+        }
+    }
     if(mbOnlyTracking)
     {
         mbVO = nmatchesMap_p<10;

@@ -52,6 +52,7 @@ class Map;
 class LocalMapping;
 class LoopClosing;
 class System;
+class RosIO;
 
 class Tracking
 {  
@@ -119,7 +120,11 @@ public:
     // True if local mapping is deactivated and we are performing only localization
     bool mbOnlyTracking;
 
+    RosIO* mpRosIO;
+
     void Reset();
+
+    function<bool(double, Eigen::Isometry3d&)> GetPosWithTime;
 
 protected:
 
@@ -143,6 +148,10 @@ protected:
     bool TrackWithMotionModel();
     // Track with line
     bool TrackWithMotionModelWithLine();
+
+    // Track with vio(msckf)
+    bool TrackWithVio();
+    void RemoveOutliers(cv::Mat posVio);
 
     bool Relocalization();
 
