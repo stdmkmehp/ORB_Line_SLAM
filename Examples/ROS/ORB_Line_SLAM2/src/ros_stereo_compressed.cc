@@ -111,8 +111,8 @@ int main(int argc, char **argv)
     ros::NodeHandle nh;
     ORB_SLAM2::RosIO rosio(nh, &SLAM);
 
-    message_filters::Subscriber<sensor_msgs::CompressedImage> left_sub(nh, "/camera/left", 1);
-    message_filters::Subscriber<sensor_msgs::CompressedImage> right_sub(nh, "/camera/right", 1);
+    message_filters::Subscriber<sensor_msgs::CompressedImage> left_sub(nh, "/zed/left/image_rect_color/compressed", 1);
+    message_filters::Subscriber<sensor_msgs::CompressedImage> right_sub(nh, "/zed/right/image_rect_color/compressed", 1);
     typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::CompressedImage, sensor_msgs::CompressedImage> sync_pol;
     message_filters::Synchronizer<sync_pol> sync(sync_pol(10), left_sub,right_sub);
     sync.registerCallback(boost::bind(&ImageGrabber::GrabStereo,&igb,_1,_2));

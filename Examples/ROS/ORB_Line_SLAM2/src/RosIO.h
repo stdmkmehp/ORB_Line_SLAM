@@ -35,6 +35,31 @@ public:
 	// void GetPoseFromVIO(list<pair<double, Eigen::Isometry3d>>& lPos_backup);
 	bool GetPoseFromVIO(double t, Eigen::Isometry3d& Tvio);
 
+	void SaveTrajectoryTUM(const string &filename)
+	{
+		if(!Config::useIMU())
+			return;
+			
+		ofstream f;
+		f.open(filename.c_str());
+		f << fixed;
+
+		for(auto& ele : vtraj)
+		{
+			double timestamp = ele.tstamp;
+			double tx = ele.pos.translation()(0), ty =  ele.pos.translation()(1), tz = ele.pos.translation()(2);
+
+			Eigen::Matrix4d R = ele.pos.matrix();
+			vector<float> q = Converter::toQuaternion(Converter::toCvMat(R));
+
+			f << setprecision(6) << timestamp << " " <<  setprecision(9) << tx << " " << ty << " " << tz
+			  << " " << q[0] << " " << q[1] << " " << q[2] << " " << q[3] << endl;
+		}
+		f.close();
+		cout << endl << "VIO trajectory saved!" << endl;
+	}
+
+
 private:
 	// Ros node handle
 	ros::NodeHandle nh;
@@ -54,6 +79,14 @@ private:
 	std::condition_variable mCond;
 
 	void PoseCallback(const geometry_msgs::PoseStampedConstPtr& msg);
+
+	struct Traj {
+		Traj(double t, Eigen::Isometry3d p)
+			: tstamp(t), pos(p) {}
+		double tstamp;
+		Eigen::Isometry3d pos;
+	};
+	vector<Traj> vtraj;
 };
 
 RosIO::RosIO(ros::NodeHandle& n, ORB_SLAM2::System* ps) : iscalib(false)
@@ -99,15 +132,22 @@ void RosIO::PoseCallback(const geometry_msgs::PoseStampedConstPtr& msg)
 	tf::poseMsgToEigen(msg->pose, pos);
 	auto tstamp = msg->header.stamp.toSec();
 
-	std::unique_lock<std::mutex> lock(mMutexPos);
-	// printf("Insert time %.3f, system time %.3f\n", tstamp, std::chrono::system_clock::now().time_since_epoch().count()/1e9);
-	if(!iscalib) {
-		Eigen::Isometry3d Tdelta = Twi0 * pos * Tic;
-		Twi0 = Tdelta.inverse() * Twi0; // update Twi0 with Tdelta
-		iscalib = true;
+	{
+		std::unique_lock<std::mutex> lock(mMutexPos);
+		// printf("Insert time %.3f, system time %.3f\n", tstamp, std::chrono::system_clock::now().time_since_epoch().count()/1e9);
+		if(!iscalib) {
+			Eigen::Isometry3d Tdelta = Twi0 * pos * Tic;
+			Twi0 = Tdelta.inverse() * Twi0; // update Twi0 with Tdelta
+			iscalib = true;
+		}
+		lPos.push_back(pair<double, Eigen::Isometry3d>(tstamp, pos));
+		mCond.notify_one();
 	}
-	lPos.push_back(pair<double, Eigen::Isometry3d>(tstamp, pos));
-	mCond.notify_one();
+
+	{
+		vtraj.push_back({tstamp, Twi0*pos*Tic});
+	}
+
 	return;
 }
 

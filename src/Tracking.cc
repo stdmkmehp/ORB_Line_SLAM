@@ -158,6 +158,7 @@ Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, LineVocabulary* pVoc_l, Fr
     }
 
     cout << endl << "Use Motion Model: " << Config::useMotionModel() <<endl;
+    cout << "Merge IMU with visual features: " << Config::useIMU() << endl <<endl;
 
     if(sensor==System::RGBD)
     {
@@ -1529,7 +1530,7 @@ bool Tracking::TrackWithMotionModelWithLine()
 bool Tracking::TrackWithVio()
 {
     // cout<<"[Debug] Calling TrackWithVio(), mCurrentFrame.mnId:"<<mCurrentFrame.mnId<<endl;
-    cout<<"[Debug] Calling TrackWithVio(), mCurrentFrame.mnId:"<<mCurrentFrame.mnId<<endl;
+    // cout<<"[Debug] Calling TrackWithVio(), mCurrentFrame.mnId:"<<mCurrentFrame.mnId<<endl;
 
     ORBmatcher matcher(0.9,true);
 

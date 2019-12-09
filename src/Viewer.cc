@@ -20,6 +20,7 @@
 
 #include "Viewer.h"
 #include <pangolin/pangolin.h>
+#include <fstream>
 
 #include <mutex>
 
@@ -73,6 +74,7 @@ void Viewer::Run()
     pangolin::Var<bool> menuShowGraph("menu.Show Graph",true,true);
     pangolin::Var<bool> menuLocalizationMode("menu.Localization Mode",false,true);
     pangolin::Var<bool> menuReset("menu.Reset",false,false);
+    pangolin::Var<bool> menuRecord("menu.Record",false,false);
 
     // Define Camera Render Object (for view / scene browsing)
     pangolin::OpenGlRenderState s_cam(
@@ -134,6 +136,13 @@ void Viewer::Run()
             mpMapDrawer->DrawMapPoints();
         if(menuShowLines)
             mpMapDrawer->DrawMapLines();
+        if(menuRecord) {
+            menuRecord = false;
+            cv::Mat t = mpTracker->mCurrentFrame.GetCameraCenter();
+            std::ofstream fout("poseRecord.txt", ios::app);
+            fout << t.at<float>(0,0) << " " << t.at<float>(0,1) << " " << t.at<float>(0,2) << endl;
+            fout.close();
+        }
 
         pangolin::FinishFrame();
 
